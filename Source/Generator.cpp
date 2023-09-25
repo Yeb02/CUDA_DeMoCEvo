@@ -246,7 +246,7 @@ void Generator::accumulateGrads(int layer, float* Xs, float* X0) {
 	{
 
 		torch::Tensor newInputs = torch::from_blob(X0, { nUpdatedPoints , gaussianVecSize }, 
-			torch::TensorOptions().dtype(torch::kFloat32) //.requires_grad(true)
+			torch::TensorOptions().dtype(torch::kFloat32).requires_grad(true)
 		);
 
 		int intendedOutputsID = 0;
@@ -327,7 +327,12 @@ void Generator::accumulateGrads(int layer, float* Xs, float* X0) {
 			{
 				torch::Tensor matSpecialistOutput = matSpecialists[layer*N_MATRICES+matSpeID].forward(matSpecialistInput);
 				torch::Tensor out = torch::mse_loss(matSpecialistOutput, matTargets[matSpeID]);
-				out.backward({}, true, true);
+				out.backward();
+				 
+				//out.backward({}, true);
+				//out.backward({}, true, false);
+				//out.backward({}, true, true);
+				// 
 				//out.backward({}, false, true);
 			}
 
@@ -495,11 +500,11 @@ void Generator::fillNode(Node* node, int layer, float* seed)
 			};
 
 			int l0 = 0;
-			fillLines(l0, node->toOutput.get());
+			fillLines(l0, &node->toOutput);
 			l0 += node->outputSize;
-			fillLines(l0, node->toModulation.get());
+			fillLines(l0, &node->toModulation);
 			l0 += MODULATION_VECTOR_SIZE;
-			fillLines(l0, node->toComplex.get());
+			fillLines(l0, &node->toChildren);
 		};
 
 		int matSpeID = 0;
@@ -566,11 +571,11 @@ void Generator::fillNode(Node* node, int layer, float* seed)
 			};
 
 			int i0 = 0;
-			fillSubArr(i0, node->toOutput.get());
+			fillSubArr(i0, &node->toOutput);
 			i0 += node->outputSize;
-			fillSubArr(i0, node->toModulation.get());
+			fillSubArr(i0, &node->toModulation);
 			i0 += MODULATION_VECTOR_SIZE;
-			fillSubArr(i0, node->toComplex.get());
+			fillSubArr(i0, &node->toChildren);
 		};
 
 		int arrSpeID = 0;

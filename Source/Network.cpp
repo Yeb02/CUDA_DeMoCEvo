@@ -14,7 +14,7 @@ Network::Network(int inputSize, int outputSize, float* seed) :
 
 
 float* Network::getOutput() {
-	return topNode->preSynActs;
+	return topNode->destinationArray;
 }
 
 
@@ -25,8 +25,8 @@ void Network::postTrialUpdate() {
 
 void Network::destroyPhenotype() {
 	topNode.reset(NULL);
-	postSynActs.reset(NULL);
-	preSynActs.reset(NULL);
+	inputArray.reset(NULL);
+	destinationArray.reset(NULL);
 #ifdef SATURATION_PENALIZING
 	averageActivation.reset(NULL);
 #endif
@@ -63,8 +63,8 @@ void Network::createPhenotype(int* inS, int* outS, int* nC, int*nN, int nL) {
 #endif
 		}
 
-		preSynActs = std::make_unique<float[]>(preSynActsArraySize);
-		postSynActs = std::make_unique<float[]>(postSynActArraySize);
+		destinationArray = std::make_unique<float[]>(preSynActsArraySize);
+		inputArray = std::make_unique<float[]>(postSynActArraySize);
 
 		float* ptr_accumulatedPreSynActs = nullptr;
 #ifdef STDP
@@ -84,8 +84,8 @@ void Network::createPhenotype(int* inS, int* outS, int* nC, int*nN, int nL) {
 
 		
 		// The following values will be modified by each node of the phenotype as the pointers are set.
-		float* ptr_postSynActs = postSynActs.get();
-		float* ptr_preSynActs = preSynActs.get();
+		float* ptr_postSynActs = inputArray.get();
+		float* ptr_preSynActs = destinationArray.get();
 		topNode->setArrayPointers(
 			&ptr_postSynActs,
 			&ptr_preSynActs,
@@ -100,8 +100,8 @@ void Network::createPhenotype(int* inS, int* outS, int* nC, int*nN, int nL) {
 
 void Network::preTrialReset() {
 
-	std::fill(postSynActs.get(), postSynActs.get() + postSynActArraySize, 0.0f);
-	//std::fill(preSynActs.get(), preSynActs.get() + preSynActsArraySize, 0.0f); // is already set to the biases.
+	std::fill(inputArray.get(), inputArray.get() + postSynActArraySize, 0.0f);
+	//std::fill(destinationArray.get(), destinationArray.get() + preSynActsArraySize, 0.0f); // is already set to the biases.
 #ifdef STDP
 	std::fill(accumulatedPreSynActs.get(), accumulatedPreSynActs.get() + preSynActsArraySize, 0.0f);
 #endif
@@ -113,7 +113,7 @@ void Network::preTrialReset() {
 void Network::step(const std::vector<float>& obs) 
 {
 	nInferencesOverLifetime++;
-	std::copy(obs.begin(), obs.end(), topNode->postSynActs);
+	std::copy(obs.begin(), obs.end(), topNode->inputArray);
 	std::fill(topNode->totalM, topNode->totalM + MODULATION_VECTOR_SIZE, 0.0f);
 	topNode->forward();
 }

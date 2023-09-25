@@ -57,17 +57,17 @@ struct Network {
 	//			 - created alongside topNode_P creation; 
 	//           - freed alongside topNode_P deletion.
 	// Layout detailed in the Phenotype structs.
-	std::unique_ptr<float[]> postSynActs, preSynActs;
+	std::unique_ptr<float[]> inputArray, destinationArray;
 
 #ifdef STDP
-	// same size and layout that of preSynActs.
+	// same size and layout that of destinationArray.
 	std::unique_ptr<float[]> accumulatedPreSynActs;
 #endif
 
-	// size of postSynActs
+	// size of inputArray
 	int postSynActArraySize;
 
-	// size of preSynActs
+	// size of destinationArray
 	int preSynActsArraySize;
 
 

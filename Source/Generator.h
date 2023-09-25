@@ -21,19 +21,19 @@ struct GeneratorParameters {
 	//defaults:
 	GeneratorParameters()
 	{
-		lr = .1f;
+		lr = .01f;
 		nNetsPerBatch = 30;
-		nTrialsPerNet = 20;
-		gaussianVecSize = 10;
-		elitePercentage = .2f;
+		nTrialsPerNet = 40;
+		gaussianVecSize = 30;
+		elitePercentage = .1f;
 		nUpdatedPoints = 10;
 		updateRadius = .2f;
 
 #ifdef _DEBUG
-		nNetsPerBatch = 3;
+		nNetsPerBatch = 5;
 		nTrialsPerNet = 4;
 		gaussianVecSize = 5;
-		elitePercentage = .2f;
+		elitePercentage = .5f;
 		nUpdatedPoints = 2;
 		updateRadius = .2f;
 #endif

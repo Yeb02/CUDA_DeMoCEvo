@@ -71,18 +71,18 @@ struct Node {
 
 	std::vector<Node> children;
 
-	std::unique_ptr<InternalConnexion> toComplex;
-	std::unique_ptr<InternalConnexion> toModulation;
-	std::unique_ptr<InternalConnexion> toOutput;
+	InternalConnexion toChildren;
+	InternalConnexion toModulation;
+	InternalConnexion toOutput;
 
 	
 	// Used as the multiplied vector in matrix operations. Layout:
 	// input -> modulation.out -> complexChildren.out -> memoryChildren.out
-	float* postSynActs;
+	float* inputArray;
 
 	// Used as the result vector in matrix operations. Layout:
 	// output -> modulation.in -> complexChildren.in -> memoryChildren.in
-	float* preSynActs;
+	float* destinationArray;
 
 #ifdef STDP
 	// Same layout as PreSynActs, i.e.

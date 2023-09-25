@@ -45,6 +45,8 @@ struct InternalConnexion {
 
 
 	InternalConnexion(int nLines, int nColumns);
+	//Should never be called
+	InternalConnexion() {};
 	~InternalConnexion() {};
 
 #ifdef RANDOM_WB

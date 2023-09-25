@@ -5,14 +5,14 @@
 
 // Should never be called.
 Node::Node() 
-{
+{ //TODO donner un constructeur vide, puisqu il ne sera jamais appelé
 	__debugbreak();
 
 	inputSize = 0;
 	outputSize = 0;
 
-	postSynActs = nullptr;
-	preSynActs = nullptr;
+	inputArray = nullptr;
+	destinationArray = nullptr;
 	
 #ifdef STDP
 	accumulatedPreSynActs = nullptr;
@@ -22,17 +22,13 @@ Node::Node()
 	averageActivation = nullptr;
 	globalSaturationAccumulator = nullptr;
 #endif
-
-	toComplex.reset(NULL);
-	toModulation.reset(NULL);
-	toOutput.reset(NULL);
 };
 
 Node::Node(int* inS, int* outS, int* nC) :
 	inputSize(inS[0]), outputSize(outS[0]),
-	toModulation(new InternalConnexion(MODULATION_VECTOR_SIZE, computeNCols(inS, outS, nC[0]))),
-	toComplex(new InternalConnexion(nC[0] > 0 ? nC[0] * inS[1] : 0, computeNCols(inS, outS, nC[0]))),
-	toOutput(new InternalConnexion(outS[0], computeNCols(inS, outS, nC[0])))
+	toModulation(MODULATION_VECTOR_SIZE, computeNCols(inS, outS, nC[0])),
+	toChildren(nC[0] > 0 ? nC[0] * inS[1] : 0, computeNCols(inS, outS, nC[0])),
+	toOutput(outS[0], computeNCols(inS, outS, nC[0]))
 {
 
 	children.reserve(nC[0]);
@@ -40,8 +36,8 @@ Node::Node(int* inS, int* outS, int* nC) :
 		children.emplace_back(inS + 1, outS + 1, nC + 1);
 	}
 
-	postSynActs = nullptr;
-	preSynActs = nullptr;
+	inputArray = nullptr;
+	destinationArray = nullptr;
 
 #ifdef STDP
 	accumulatedPreSynActs = nullptr;
@@ -53,13 +49,14 @@ Node::Node(int* inS, int* outS, int* nC) :
 #endif
 }
 
+
 void Node::setArrayPointers(float** post_syn_acts, float** pre_syn_acts, float** aa, float** acc_pre_syn_acts) {
 
 	// TODO ? if the program runs out of heap memory, one could make it so that a node does not store its own 
 	// output. But prevents in place matmul, and complexifies things.
 
-	postSynActs = *post_syn_acts;
-	preSynActs = *pre_syn_acts;
+	inputArray = *post_syn_acts;
+	destinationArray = *pre_syn_acts;
 
 
 	*post_syn_acts += inputSize + MODULATION_VECTOR_SIZE;
@@ -100,21 +97,21 @@ void Node::preTrialReset() {
 		children[i].preTrialReset();
 	}
 
-	toComplex->zeroEH();
-	toModulation->zeroEH();
-	toOutput->zeroEH();
+	toChildren.zeroEH();
+	toModulation.zeroEH();
+	toOutput.zeroEH();
 
 
 #ifdef RANDOM_WB
-	toComplex->randomInitWB();
-	toModulation->randomInitWB();
-	toOutput->randomInitWB();
+	toChildren.randomInitWB();
+	toModulation.randomInitWB();
+	toOutput.randomInitWB();
 #endif
 
 #if defined(ZERO_WL_BEFORE_TRIAL)
-	toComplex->zeroWlifetime();
-	toModulation->zeroWlifetime();
-	toOutput->zeroWlifetime();
+	toChildren.zeroWlifetime();
+	toModulation.zeroWlifetime();
+	toOutput.zeroWlifetime();
 #endif 
 
 }
@@ -139,9 +136,9 @@ void Node::forward() {
 
 
 #ifdef DROPOUT
-	toComplex->dropout();
-	toOutput->dropout();
-	toModulation->dropout();
+	toChildren.dropout();
+	toOutput.dropout();
+	toModulation.dropout();
 #endif
 
 	// STEP 1 to 4: propagate and call children's forward.
@@ -152,7 +149,7 @@ void Node::forward() {
 
 	// These 3 lambdas, hopefully inline, avoid repetition, as they are used for each child type.
 
-	auto propagate = [this](InternalConnexion* co, float* destinationArray)
+	auto propagate = [this](InternalConnexion* co, float* inputArray)
 	{
 		int nl = co->nLines;
 		int nc = co->nColumns;
@@ -167,10 +164,10 @@ void Node::forward() {
 
 
 		for (int i = 0; i < nl; i++) {
-			destinationArray[i] = b[i];
+			inputArray[i] = b[i];
 			for (int j = 0; j < nc; j++) {
 				// += (H * alpha + w + wL) * prevAct
-				destinationArray[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * postSynActs[j];
+				inputArray[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * inputArray[j];
 				matID++;
 			}
 		}
@@ -178,7 +175,7 @@ void Node::forward() {
 
 	};
 
-	auto hebbianUpdate = [this](InternalConnexion* co, float* destinationArray) {
+	auto hebbianUpdate = [this](InternalConnexion* co, float* inputArray) {
 		int nl = co->nLines;
 		int nc = co->nColumns;
 		int matID = 0;
@@ -207,10 +204,10 @@ void Node::forward() {
 				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * H[matID] * alpha[matID] * totalM[1]; // TODO remove ?
 
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-					(A[matID] * destinationArray[i] * postSynActs[j] + B[matID] * destinationArray[i] + C[matID] * postSynActs[j] + D[matID]);
+					(A[matID] * inputArray[i] * inputArray[j] + B[matID] * inputArray[i] + C[matID] * inputArray[j] + D[matID]);
 
 #ifdef OJA
-				E[matID] -= eta[matID] * destinationArray[i] * destinationArray[i] * delta[matID] * (w[matID] + alpha[matID] * H[matID] + wLifetime[matID]);
+				E[matID] -= eta[matID] * inputArray[i] * inputArray[i] * delta[matID] * (w[matID] + alpha[matID] * H[matID] + wLifetime[matID]);
 #endif
 
 				H[matID] += E[matID] * totalM[0];
@@ -246,7 +243,8 @@ void Node::forward() {
 
 #ifdef STDP
 		for (int i = 0; i < size; i++) {
-			acc_src[i] -= lambda[i] * (1.0f - dst[i] * dst[i]) * powf(dst[i], 2.0f * 0.0f + 1.0f); // TODO only works for tanh as of now
+			// acc_src's magnitude decreases when there is a significant activation.
+			acc_src[i] -= lambda[i] * powf(dst[i], 2.0f * 1.0f + 1.0f); 
 		}
 #endif
 	};
@@ -255,24 +253,24 @@ void Node::forward() {
 
 	// STEP 1: MODULATION  A
 	{
-		propagate(toModulation.get(), preSynActs + outputSize);
+		propagate(&toModulation, destinationArray + outputSize);
 		applyNonLinearities(
-			preSynActs + outputSize,
-			postSynActs + inputSize,
+			destinationArray + outputSize,
+			inputArray + inputSize,
 			MODULATION_VECTOR_SIZE
 #ifdef STDP
-			, accumulatedPreSynActs + outputSize, toModulation->STDP_mu.get(), toModulation->STDP_lambda.get()
+			, accumulatedPreSynActs + outputSize, toModulation.STDP_mu.get(), toModulation.STDP_lambda.get()
 #endif
 		);
-		hebbianUpdate(toModulation.get(), postSynActs + inputSize);
+		hebbianUpdate(&toModulation, inputArray + inputSize);
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			totalM[i] += postSynActs[i + inputSize];
+			totalM[i] += inputArray[i + inputSize];
 		}
 
 #ifdef SATURATION_PENALIZING 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			float v = postSynActs[i + inputSize];
+			float v = inputArray[i + inputSize];
 			*globalSaturationAccumulator += powf(abs(v), saturationExponent);
 			averageActivation[i] += v;
 		}
@@ -282,11 +280,11 @@ void Node::forward() {
 
 	// STEP 2: COMPLEX
 	if (children.size() != 0) {
-		float* ptrToInputs = preSynActs + outputSize + MODULATION_VECTOR_SIZE;
+		float* ptrToInputs = destinationArray + outputSize + MODULATION_VECTOR_SIZE;
 #ifdef STDP
 		float* ptrToAccInputs = accumulatedPreSynActs + outputSize + MODULATION_VECTOR_SIZE;
 #endif
-		propagate(toComplex.get(), ptrToInputs);
+		propagate(&toChildren, ptrToInputs);
 
 
 
@@ -297,10 +295,10 @@ void Node::forward() {
 
 			applyNonLinearities(
 				ptrToInputs + id,
-				children[i].postSynActs,
+				children[i].inputArray,
 				children[i].inputSize
 #ifdef STDP
-				, ptrToAccInputs + id, &toComplex->STDP_mu[id], &toComplex->STDP_lambda[id]
+				, ptrToAccInputs + id, &toChildren.STDP_mu[id], &toChildren.STDP_lambda[id]
 #endif
 			);
 
@@ -308,7 +306,7 @@ void Node::forward() {
 			// child post-syn input
 			int i0 = MODULATION_VECTOR_SIZE + id;
 			for (int j = 0; j < children[i].inputSize; j++) {
-				float v = children[i].postSynActs[j];
+				float v = children[i].inputArray[j];
 				*globalSaturationAccumulator += powf(abs(v), saturationExponent);
 				averageActivation[i0 + j] += v;
 			}
@@ -319,12 +317,12 @@ void Node::forward() {
 
 		// has to happen after non linearities but before forward, 
 		// for children's output not to have changed yet.
-		hebbianUpdate(toComplex.get(), ptrToInputs);
+		hebbianUpdate(&toChildren, ptrToInputs);
 
 
 		// transmit modulation and apply forward, then retrieve the child's output.
 
-		float* childOut = postSynActs + inputSize + MODULATION_VECTOR_SIZE;
+		float* childOut = inputArray + inputSize + MODULATION_VECTOR_SIZE;
 		for (int i = 0; i < children.size(); i++) {
 
 			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
@@ -333,7 +331,7 @@ void Node::forward() {
 
 			children[i].forward();
 
-			std::copy(children[i].preSynActs, children[i].preSynActs + children[i].outputSize, childOut);
+			std::copy(children[i].destinationArray, children[i].destinationArray + children[i].outputSize, childOut);
 			childOut += children[i].outputSize;
 		}
 
@@ -342,24 +340,24 @@ void Node::forward() {
 
 	// STEP 3: MODULATION B. 
 	{
-		propagate(toModulation.get(), preSynActs + outputSize);
+		propagate(&toModulation, destinationArray + outputSize);
 		applyNonLinearities(
-			preSynActs + outputSize,
-			postSynActs + inputSize,
+			destinationArray + outputSize,
+			inputArray + inputSize,
 			MODULATION_VECTOR_SIZE
 #ifdef STDP
-			, accumulatedPreSynActs + outputSize, toModulation->STDP_mu.get(), toModulation->STDP_lambda.get()
+			, accumulatedPreSynActs + outputSize, toModulation.STDP_mu.get(), toModulation.STDP_lambda.get()
 #endif
 		);
-		hebbianUpdate(toModulation.get(), postSynActs + inputSize);
+		hebbianUpdate(&toModulation, inputArray + inputSize);
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			totalM[i] += postSynActs[i + inputSize];
+			totalM[i] += inputArray[i + inputSize];
 		}
 
 #ifdef SATURATION_PENALIZING 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			float v = postSynActs[i + inputSize];
+			float v = inputArray[i + inputSize];
 			*globalSaturationAccumulator += powf(abs(v), saturationExponent);
 			averageActivation[i] += v;
 		}
@@ -369,19 +367,19 @@ void Node::forward() {
 
 	// STEP 4: OUTPUT
 	{
-		propagate(toOutput.get(), preSynActs);
+		propagate(&toOutput, destinationArray);
 
 
 		applyNonLinearities(
-			preSynActs,
-			preSynActs,
+			destinationArray,
+			destinationArray,
 			outputSize
 #ifdef STDP
-			, accumulatedPreSynActs, toOutput->STDP_mu.get(), toOutput->STDP_lambda.get()
+			, accumulatedPreSynActs, toOutput.STDP_mu.get(), toOutput.STDP_lambda.get()
 #endif
 		);
 
-		hebbianUpdate(toOutput.get(), preSynActs);
+		hebbianUpdate(&toOutput, destinationArray);
 	}
 
 }

@@ -9,24 +9,37 @@ The agent's architecture is very similar to that in the [MoEv](https://github.co
 
 ## The meta-learning algorithm
 
-A genetic algorithm that evolves agents with the same architecture maintains a population of genomes, vectors of $\mathbb{R}^n$. As the size of the population grows towards infinity, the genomes can be seen as samples from a probability distribution over $\mathbb{R}^n$. 
+A genetic algorithm (GA) that evolves agents with the same topology maintains a population of genomes, vectors of $\mathbb{R}^n$. As the size of the population grows towards infinity, the genomes can be seen as samples from a probability distribution over $\mathbb{R}^n$. 
 
-DeMoCEvo implements this idea, maintaining and updating a continuous probability distribution over genomes instead of a discrete population. The distribution is modeled with hyper-networks, i.e. network-generating networks, using libtorch for deep learning. Meta-learning is inspired by the [Evolution Strategy](https://arxiv.org/pdf/1703.03864.pdf) algorithm. Evolution is a sequence of evolution steps, an evolution step consists in the following substeps:
+DeMoCEvo implements this idea, maintaining and updating a continuous probability distribution over genomes instead of a discrete population. The distribution is modeled with hyper-networks, i.e. network-generating networks, using libtorch for deep learning. The meta-learning of the hyper-networks weights is inspired by the [Evolution Strategy](https://arxiv.org/pdf/1703.03864.pdf) (ES) algorithm. 
+
+The main advantage of this algorithm over a traditional GA is the ability to share meta-learning (within the population/distribution) semantically through the hyper-networks weight updates, instead of handcrafted, non-semantic, crossover operations. 
+
+The "diversity" in a discrete population setting is the same notion as the entropy of the hyper-network's output distribution here. It is essential to maintain diversity in the traditional GA, so as to broaden the search space. It is as important for DeMoCEvo, as its aforementionned strength relies on the diversity of the generated agents. Therefore a collapse of the hyper-networks on only one genotype would greatly reduce the algorithm's effectiveness. It has not happened at all as of now, but only small problem sizes have been tested. Methods to prevent it are still to be designed.
+
+
+Evolution is a sequence of evolution steps, an evolution step consists in the following substeps:
 
 - Zero the gradients of the hyper-networks.
 - $n_s$ times:
   - Sample a seed from a gaussian distribution of size $s_s$ ($s_s$ small). Feed the seed to the hyper-networks to generate a genotype.
   - $n_p$ times:
     - Generate a random gaussian perturbation of the genotype. This perturbed genotype is used to create the phenotype of the effective agent $\mathbb{A}$.
-    - $\mathbb{A}$ experiences $n_supervised$ trials, during which its actions are supervised by a teacher agent. Teachers are agents that performed the best until now (over the whole evolution process).
-    - Then $\mathbb{A}$ experiences $n_evaluated$ trials, the scores returned by the trials are accumulated to compute $\mathbb{A}$'s fitness.
+    - $\mathbb{A}$ experiences $n_{supervised}$ trials, during which its actions are supervised by a teacher agent. Teachers are agents that performed the best until now (over the whole evolution process).
+    - Then $\mathbb{A}$ experiences $n_{evaluated}$ trials, the scores returned by the trials are accumulated to compute $\mathbb{A}$'s fitness.
   - In ES fashion, the *label*, or *target* of the hyper-networks is the barycenter of the perturbed genotypes weighted by their fitnesses. It is then used to compute the loss of the hyper-networks, and          the gradients are accumulated.
 - Perform a step of the optimizer, updating the weights of the hyper-networks. 
 
 <img align="center" src="./diagrams/DeMoCEvo.png">
 
-  In the practical implementations, many tweaks are needed for convergence. The two most important are: mirroring each perturbation, i.e. also evaluating its opposite; and evaluating the unperturbated genome, to give a reference fitness when computing the barycenter weights magnitude.
+In the practical implementation, many tweaks of the algorithm are needed for convergence. The two most important are: 
+
+- mirroring each perturbation, i.e. also evaluating its opposite as ES recommends. Let $\mathbb{G}$ the unperturbed genome, $\epsilon$ a gaussian perturbation vector. Both the agent constructed from $\mathbb{G} + \epsilon$ and $\mathbb{G} - \epsilon$ must be evaluated.
+ 
+- evaluating the unperturbed genome $\mathbb{G}$, to give a reference fitness when computing the barycenter's weights magnitude. Let $\mathbb{A}$ the agent constructed from $\mathbb{G}$, $\mathbb{A}^{+\epsilon}$ the agent constructed from $\mathbb{G} + \epsilon$, $\mathbb{A}^{-\epsilon}$ the agent constructed from $\mathbb{G} - \epsilon$, and $f(-)$ the fitness of an agent. <br>
+  If both $f(\mathbb{A}^{-\epsilon})$ and $f(\mathbb{A}^{+\epsilon})$ are better than $f(\mathbb{A})$, a change of the genome in either direction is desirable, and the weight of $\epsilon$ in the *target* has a great magnitude. At the opposite, if both $f(\mathbb{A}^{-\epsilon})$ and $f(\mathbb{A}^{+\epsilon})$ are worse than $f(\mathbb{A})$, a change of the genome in either direction is not advisable, and the weight of $\epsilon$ in the *target* has a small magnitude.
   
+
 
 ## Agent architecture
 

@@ -53,8 +53,15 @@ The agent has a pointer to the root module, and an inference / learning step is 
 
 ## Implementation note
 
-CUDA and Cublas functions will be merged to the main branch when a satisfactory modulation rule for predictive coding is found. The time it takes to develop and iterate on kernels is not worth the performance gain on my hardware (GTX 1050M). In the mean time, acceleration relies on CPU threading and Eigen for BLAS. 
-This algorithm would greatly benefit from being entirely ported to GPU, without the need for a CPU in the loop. Not working on it right now but it is projected. It would require CUDA/Cublas for the agent's functions, Curand for the evolution's rng, libtorch for deep learning, [Isaac gym](https://developer.nvidia.com/isaac-gym) for the trials.
+CUDA and Cublas functions will be merged to the main branch when a satisfactory modulation rule for predictive coding is found. The time it takes to develop and iterate on kernels is not worth the performance gain on my hardware (GTX 1050M). In the mean time, acceleration relies on Eigen for BLAS (enable openMP when compiling for implicit threading). <br>
+
+There are 2 major hindrances to predictive coding's efficiency: 
+- low GPU occupancy as its operations are matrix-vector products, memory bound.
+- each "time step" in the simulation requires a number of inference steps, and the deeper the network the worst it gets. 5 layers require at least 16 steps.
+
+We could kill two birds with one stone by grouping the activations of (32 ? 128 ? ...) adjacent time steps into a matrix, and performing inference simultaneously on those. Modulation (i.e. learning, theta update) would only apply to the last column at each time step, i.e. the activations that come from the oldest sample, on which inference has had time to converge (process similar but not identical to iPC). And the agent's action would also be the converged activations of the last columns. <sub><sup>However this would induce latency, but I have an idea that could alleviate it</sup></sub> 
+
+Looking further, this algorithm would greatly benefit from being entirely ported to GPU, without the need for a CPU in the loop. Not working on it right now but it is projected. It would require CUDA/Cublas for the agent's functions, Curand for the evolution's rng, libtorch for deep learning, [Isaac gym](https://developer.nvidia.com/isaac-gym) for the trials. 
 
 There are many hyperparameters to play with, and variants of the algorithm to switch to. These can be tweaked in main.cpp and config.h .
 

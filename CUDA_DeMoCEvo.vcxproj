@@ -56,6 +56,8 @@
       <PreprocessorDefinitions>WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\include;$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\include\torch\csrc\api\include</AdditionalIncludeDirectories>
+      <OpenMPSupport>true</OpenMPSupport>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -76,6 +78,8 @@
       <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir);$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_RELEASE_cu1_18\libtorch\include;$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_RELEASE_cu1_18\libtorch\include\torch\csrc\api\include</AdditionalIncludeDirectories>
+      <OpenMPSupport>true</OpenMPSupport>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -90,23 +94,32 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Source\Generator.cpp" />
+    <ClCompile Include="Source\Functions.cpp" />
+    <ClCompile Include="Source\GeneratorNode.cpp" />
+    <ClCompile Include="Source\System.cpp" />
     <ClCompile Include="Source\InternalConnexion.cpp" />
     <ClCompile Include="Source\main.cpp" />
+    <ClCompile Include="Source\MNIST.cpp" />
     <ClCompile Include="Source\Network.cpp" />
     <ClCompile Include="Source\Node.cpp" />
     <ClCompile Include="Source\Random.cpp" />
     <ClCompile Include="Source\Trial.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Source\config.h" />
-    <ClInclude Include="Source\Generator.h" />
+    <ClInclude Include="Source\Config.h" />
+    <ClInclude Include="Source\DeMoCEvoCore.h" />
+    <ClInclude Include="Source\Functions.h" />
+    <ClInclude Include="Source\GeneratorNode.h" />
     <ClInclude Include="Source\InternalConnexion.h" />
+    <ClInclude Include="Source\DeMoCEvoMacros.h" />
+    <ClInclude Include="Source\MNIST.h" />
     <ClInclude Include="Source\Network.h" />
     <ClInclude Include="Source\Node.h" />
     <ClInclude Include="Source\Random.h" />
+    <ClInclude Include="Source\System.h" />
     <ClInclude Include="Source\TorchNNs.h" />
     <ClInclude Include="Source\Trial.h" />
+    <ClInclude Include="Source\VirtualTrial.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

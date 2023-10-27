@@ -9,14 +9,13 @@
 
 
 
-
-struct Matrixator : torch::nn::Module {
-    Matrixator(int inSize, int nColumns, int nLines, int colEmbS, int lineEmbS) 
+struct MatrixGenerator : torch::nn::Module {
+    MatrixGenerator(int seedSize, int nColumns, int nRows, int kDim)
     {
-        fc1 = register_module("fc1", torch::nn::Linear(torch::nn::LinearOptions(inSize, 128).bias(false)));
-        fc2 = register_module("fc2", torch::nn::Linear(torch::nn::LinearOptions(128, 128).bias(false)));
-        fc3 = register_module("fc3", torch::nn::Linear(torch::nn::LinearOptions(128, 128).bias(false)));
-        fc4 = register_module("fc4", torch::nn::Linear(torch::nn::LinearOptions(128, nColumns * colEmbS + nLines * lineEmbS).bias(false)));
+        fc1 = register_module("fc1", torch::nn::Linear(torch::nn::LinearOptions(seedSize, 128))); //.bias(false) ?
+        fc2 = register_module("fc2", torch::nn::Linear(torch::nn::LinearOptions(128, 128)));
+        fc3 = register_module("fc3", torch::nn::Linear(torch::nn::LinearOptions(128, 128)));
+        fc4 = register_module("fc4", torch::nn::Linear(torch::nn::LinearOptions(128, (nColumns + nRows) * kDim)));
 
         torch::NoGradGuard no_grad;
 
@@ -36,20 +35,20 @@ struct Matrixator : torch::nn::Module {
         x = torch::tanh(fc2->forward(x));
         x = torch::tanh(fc3->forward(x));
         x = torch::tanh(fc4->forward(x));
-        return x;
+        return x.contiguous();
     }
 
     torch::nn::Linear fc1{ nullptr }, fc2{ nullptr }, fc3{ nullptr }, fc4{ nullptr };
 };
 
-struct Specialist : torch::nn::Module {
+struct VectorGenerator : torch::nn::Module {
 
-    Specialist(int inS, int outS)
+    VectorGenerator(int seedSize, int outVecSize)
     {
-        fc1 = register_module("fc1", torch::nn::Linear(torch::nn::LinearOptions(inS, 64).bias(false)));
-        fc2 = register_module("fc2", torch::nn::Linear(torch::nn::LinearOptions(64, 64).bias(false)));
-        fc3 = register_module("fc3", torch::nn::Linear(torch::nn::LinearOptions(64, 64).bias(false)));
-        fc4 = register_module("fc4", torch::nn::Linear(torch::nn::LinearOptions(64, outS).bias(false)));
+        fc1 = register_module("fc1", torch::nn::Linear(torch::nn::LinearOptions(seedSize, 64)));
+        fc2 = register_module("fc2", torch::nn::Linear(torch::nn::LinearOptions(64, 64)));
+        fc3 = register_module("fc3", torch::nn::Linear(torch::nn::LinearOptions(64, 64)));
+        fc4 = register_module("fc4", torch::nn::Linear(torch::nn::LinearOptions(64, outVecSize)));
 
         torch::NoGradGuard no_grad;
 

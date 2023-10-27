@@ -7,18 +7,24 @@
     <Filter Include="Headers">
       <UniqueIdentifier>{513f49e3-bb15-46c8-87c8-38fccc4e5d45}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Headers\utils">
+      <UniqueIdentifier>{bc3c66b7-5d84-4d87-930a-3bd0c9aa2e93}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\utils">
+      <UniqueIdentifier>{c35bf3c0-7736-4341-b222-d68d01bc2832}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Evaluation">
+      <UniqueIdentifier>{2ac3821e-19d6-4909-bb50-2190995a35ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Headers\Evaluation">
+      <UniqueIdentifier>{a87a8574-ac45-49d8-8d74-3a922df1d0b2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Source\Generator.cpp">
+    <ClCompile Include="Source\System.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\Network.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Random.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Trial.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\Node.cpp">
@@ -30,30 +36,63 @@
     <ClCompile Include="Source\main.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Functions.cpp">
+      <Filter>Source\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Random.cpp">
+      <Filter>Source\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Trial.cpp">
+      <Filter>Source\Evaluation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\MNIST.cpp">
+      <Filter>Source\Evaluation</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\GeneratorNode.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Source\config.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Generator.h">
+    <ClInclude Include="Source\GeneratorNode.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="Source\Network.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Random.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
     <ClInclude Include="Source\TorchNNs.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Trial.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="Source\Node.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="Source\InternalConnexion.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Config.h">
+      <Filter>Headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Random.h">
+      <Filter>Headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DeMoCEvoCore.h">
+      <Filter>Headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Functions.h">
+      <Filter>Headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\DeMoCEvoMacros.h">
+      <Filter>Headers\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Trial.h">
+      <Filter>Headers\Evaluation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\MNIST.h">
+      <Filter>Headers\Evaluation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\VirtualTrial.h">
+      <Filter>Headers\Evaluation</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>

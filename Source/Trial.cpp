@@ -105,6 +105,15 @@ CartPoleTrial::CartPoleTrial(bool continuousControl) :
 	reset();
 }
 
+void CartPoleTrial::setObservations() 
+{
+	observations[0] = x/2.5f;
+	observations[1] = xDot;
+	observations[2] = theta/.21f;
+	observations[3] = thetaDot;
+}
+
+
 void CartPoleTrial::reset(bool sameSeed) {
 	score = 0.0f;
 	isTrialOver = false;
@@ -122,11 +131,8 @@ void CartPoleTrial::reset(bool sameSeed) {
 	xDot = xDot0;
 	theta = theta0;
 	thetaDot = thetaDot0;
-
-	observations[0] = x;
-	observations[1] = xDot;
-	observations[2] = theta;
-	observations[3] = thetaDot;
+	
+	setObservations();
 }
 
 void CartPoleTrial::step(const float* actions) {
@@ -142,12 +148,18 @@ void CartPoleTrial::step(const float* actions) {
 	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true; 
 	if (isTrialOver) return;
 
+	if (actions[0] != actions[0]) // i.e. is NaN
+	{
+		std::cout << "NETWORK OUTPUT NaN" << std::endl;
+		return;
+	}
+
 	currentNStep++;
 	score += 1.0f;
 
 	// To give time to the initial observation to propagate to the network. Avoiding a cold start,
 	// in case the initial observation requires quick actions. This hinders outer and inner learning though.
-	if (currentNStep < 5) return; 
+	if (currentNStep < 2) return; 
 
 
 	//if (currentNStep % 2 == 0) return;  Giving the network twice the "time to think" worsens performances. 
@@ -177,10 +189,7 @@ void CartPoleTrial::step(const float* actions) {
 	theta = theta + tau * thetaDot;
 	thetaDot = thetaDot + tau * thetaacc;
 
-	observations[0] = x;
-	observations[1] = xDot;
-	observations[2] = theta;
-	observations[3] = thetaDot;
+	setObservations();
 
 }
 
@@ -547,7 +556,10 @@ void MemoryTrial::reset(bool sameSeed) {
 		}
 	}
 
-	// observation is set exclusively by step().
+	// Set the obs to the first motif that will be presented
+	for (int j = 0; j < responseSize + motifSize; j++) {
+		observations[j] = motifResponsePairs[j];
+	}
 }
 
 // During the evaluation, each motif is shown evaluationExposure steps before we actually compute a score,

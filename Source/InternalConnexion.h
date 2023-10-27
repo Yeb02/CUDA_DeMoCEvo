@@ -1,65 +1,37 @@
 #pragma once
 
 #include <memory>
-#include "config.h"
-#include "Random.h"
+#include "DeMoCEvoCore.h"
 
 
 struct InternalConnexion { 
 
-	int nLines, nColumns;
+	int nRows, nColumns;
 
-	// constant quantities:
-	std::unique_ptr<float[]> A;
-	std::unique_ptr<float[]> B;
-	std::unique_ptr<float[]> C;
-	std::unique_ptr<float[]> D;
-	std::unique_ptr<float[]> eta;	// in [0, 1]
-	std::unique_ptr<float[]> alpha;
-	std::unique_ptr<float[]> gamma; // in [0, 1]
+	std::unique_ptr<float[]> storage;
 
-#ifdef OJA
-	std::unique_ptr<float[]> delta; // in [0, 1]
-#endif
+	std::vector<MMatrix> matrices;
 
-	
+	// vectors are of size nRows.
+	std::vector<MVector> vectors;
 
 
-#ifdef STDP
-	std::unique_ptr<float[]> STDP_mu;
-	std::unique_ptr<float[]> STDP_lambda;
-#endif
+	InternalConnexion(int nRows, int nColumns);
 
-	// variable quantities:
-
-	std::unique_ptr<float[]> H;
-	std::unique_ptr<float[]> E;
-	// Initialized to 0 when and only when the connexion is created. 
-	std::unique_ptr<float[]> wLifetime;
-
-
-	// If RANDOM_WB, reset to random values at the beginning of each trial.
-	// Otherwise constant.
-	std::unique_ptr<float[]> w;
-	std::unique_ptr<float[]> biases;
-
-
-	InternalConnexion(int nLines, int nColumns);
 	//Should never be called
 	InternalConnexion() {};
+
+	InternalConnexion(const InternalConnexion& gc);
+
 	~InternalConnexion() {};
 
-#ifdef RANDOM_WB
-	void randomInitWB();
-#endif
+	int getNParameters() {
+		return nRows * nColumns * N_MATRICES + nRows * N_VECTORS;
+	}
 
-#ifdef DROPOUT
-	void dropout();
-#endif
+	void createArraysFromStorage();
 
-	void zeroEH();
+	InternalConnexion(std::ifstream& is);
 
-	// only called at construction.
-	void zeroWlifetime();
-
+	void save(std::ofstream& os);
 };

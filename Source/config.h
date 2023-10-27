@@ -9,68 +9,90 @@
 // Comment/uncomment or change the value of various preprocessor directives
 // to compile different versions of the code. Or use the -D flag.
 
+#pragma once
+
+////////////////////////////////////
+///// USER COMPILATION CHOICES /////
+////////////////////////////////////
 
 
-// Defined if and only if there should not be any lifelong (i.e. inter trial) learning
-#define ZERO_WL_BEFORE_TRIAL  
-
-// When defined, for each network, float sp = sum of a function F of each activation of the network, at each step.
-// F is of the kind pow(activation, 2*k), so that its symmetric around 0 and decreasing in [-1,0]. (=> increasing in [0, -1])
-// At the end of the lifetime, sp is divided by the numer of steps and the number of activations, as both may differ from
-// one specimen to another. The vector of [sp/(nA*nS) for each specimen] is normalized (mean 0 var 1), and for each specimen
-// the corresponding value in the vector is substracted to the score in parallel of size and amplitude regularization terms
-// when computing fitness. The lower sum(F), the fitter.
-#define SATURATION_PENALIZING
-
-// At each inference, a small random proportion of the lifetime quantities is reset to either 0 or a random value. These are,
-// when available; wL, H, E, w.
-#define DROPOUT
-
-#define MODULATION_VECTOR_SIZE 2     // DO NOT CHANGE
-
-	
-// When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each node 
-// be it Modulation, complex, memory or output has an evolved parameter (STDP_decay) that parametrizes the average.
-// WARNING only compatible with N_ACTIVATIONS = 1, I havent implemented all the derivatives in complexNode_P::forward yet
-#define STDP
-
-// The fixed weights w and biases b are not computed by the meta-nets, but set randomly  (w -> uniform(-.1,.1), b->NORMAL).
-// This reset happens either at the beginning of each trial, or lifetime. 
-#define RANDOM_WB
-
-// Adds Oja's rule to the ABCD rule. This requires the addition of the matrix delta to InternalConnexion_G, 
-// deltas being in the [0, 1] range. The update of E is now :  E = (1-eta)E + eta(ABCD... - delta*yj*yj*w_eff), 
-// where w_eff is the effective weight, something like w_eff = w + alpha * H + wL. 
-#define OJA
+// Comment/uncomment or change the value of various preprocessor directives
+// to compile different versions of the code. Or use the -D flag.
 
 
+// options still in the files : 
+// -trial uses same seed at reset (in system.cpp, thread loop),
 
-/////////////////////////// CALCULATIONS, IGNORE EVERYTHING FROM HERE ONWARDS ////////////////////////////////////////////////////
+// Use CUDA if available. DO NOT NAME THE MACRO "CUDA" ! Conflict with libtorch.
+#define USE_CUDA
 
-#ifdef STDP
-#define STDP_ARR 2 // lambda, mu
+// Choose the trial the algorithm will (try to) solve. One and only one must be defined.
+#define CARTPOLE_T
+//#define XOR_T
+//#define TEACHING_T
+//#define TMAZE_T
+//#define N_LINKS_PENDULUM_T
+//#define MEMORY_T
+//#define ROCKET_SIM_T 
+
+#ifdef CARTPOLE_T
+#define COPY CartPoleTrial
+#elif defined XOR_T
+#define COPY XorTrial
+#elif defined TEACHING_T
+#define COPY TeachingTrial
+#elif defined TMAZE_T
+#define COPY TMazeTrial
+#elif defined N_LINKS_PENDULUM_T
+#define COPY  NLinksPendulumTrial
+#elif defined MEMORY_T
+#define COPY  MemoryTrial
+#elif defined ROCKET_SIM_T
+#define COPY  RocketSimTrial
+#endif
+
+
+#define SAME_SEED
+
+// Instead of a fixed, global variance equal to 1 across the activations, modules and agents, 
+// each sigma is now evolved and per activation. (But also dynamically updated, as thetas and biases.)
+// This can be interpred as using a per activation variance not fixed to 1, but without correlation 
+// between activations on the same layer. It is used to multiply epsilons before any further computations.
+// The vector contains the inverses to speed up inference.
+// As in Friston (2005), invSigma takes values in [0,1], i.e. sigma >= 1. The values obtained from the generators
+// are changed in ConnexionGenerator::createPhenotypeArrays (generatorNode.cpp).
+// TODO insert modulation ----------------------------------------------------------------------------- TODO
+#define ACTIVATION_VARIANCE
+
+
+// Still looking for a satisfactory solution. 
+#define MODULATED
+
+// Places the observation at layer 0, and the action at layer L. (normally the other way around)
+// A network that is not reversed, not modulated, and whose root module does not have children, is effectively a fixed-weight one.
+//#define ACTION_L_OBS_O
+
+
+
+//******************* END OF PARAMETERS CHOICES ***************//
+
+// what follows must not be modified, it computes the required memory space for the algorithm
+// (by computing how many parameters each module requires) and other logic
+
+
+#ifdef ACTIVATION_VARIANCE
+#define SIGMA_VEC 1
 #else
-#define STDP_ARR 0
-#endif 
+#define SIGMA_VEC 0
+#endif
 
-#ifdef RANDOM_WB
-#define RWB_MAT 0 
-#define RWB_ARR 0 
+#ifdef MODULATED
+#define MOD_MAT 1
 #else
-#define RWB_MAT 1 // w
-#define RWB_ARR 1 // b
-#endif 
+#define MOD_MAT 0
+#endif
 
-#ifdef OJA
-#define OJA_MAT 1 // delta
-#else
-#define OJA_MAT 0
-#endif 
+#define N_MATRICES (1 + MOD_MAT)
 
 
-// How many matrices there are per complex node.  (each of size nLines*nColumns)
-// The 6 accounts for A,B,C,D,eta,alpha,gamma
-#define N_MATRICES (7 + OJA_MAT + RWB_MAT)
-
-// How many arrays there are per complex node. (each of size nLines)
-#define N_ARRAYS (RWB_ARR + STDP_ARR)
+#define N_VECTORS (1 + SIGMA_VEC)

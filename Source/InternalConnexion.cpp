@@ -2,96 +2,68 @@
 
 #include "InternalConnexion.h"
 
-InternalConnexion::InternalConnexion(int nLines, int nColumns) :
-	nColumns(nColumns), nLines(nLines)
+
+InternalConnexion::InternalConnexion(int nRows, int nColumns) :
+	nColumns(nColumns), nRows(nRows)
 {
-	int s = nLines * nColumns;
+	storage = std::make_unique<float[]>(getNParameters());
 
-	H = std::make_unique<float[]>(s);
-	E = std::make_unique<float[]>(s);
-	wLifetime = std::make_unique<float[]>(s);
-
-	w = std::make_unique<float[]>(s);
-	biases = std::make_unique<float[]>(nLines);
-
-	eta = std::make_unique<float[]>(s);
-	A = std::make_unique<float[]>(s);
-	B = std::make_unique<float[]>(s);
-	C = std::make_unique<float[]>(s);
-	D = std::make_unique<float[]>(s);
-	alpha = std::make_unique<float[]>(s);
-	gamma = std::make_unique<float[]>(s);
-
-#ifdef OJA
-	delta = std::make_unique<float[]>(s);
-#endif
-
-#ifdef STDP
-	STDP_mu = std::make_unique<float[]>(nLines);
-	STDP_lambda = std::make_unique<float[]>(nLines);
-#endif
-
-#ifndef	ZERO_WL_BEFORE_TRIAL
-	// to have a defined initialisation. ifdef not needed, happens in pretrialUpdate
-	zeroWlifetime(); 
-#endif
+	createArraysFromStorage();
 }
 
 
-#ifdef DROPOUT
-void InternalConnexion::dropout() {
-	int s = nLines * nColumns;
-	if (s == 0) return;
-
-	float normalizator = .3f * powf((float)s, -.5f); // xavier
-
-	SET_BINOMIAL(s, .01f);
-	int _nMutations = BINOMIAL;
-	for (int i = 0; i < _nMutations; i++) {
-		int id = INT_0X(s);
-
-		wLifetime[id] = 0.0f;
-		H[id] = 0.0f;
-		E[id] = 0.0f;
-
-#ifdef RANDOM_WB
-		w[id] = NORMAL_01 * normalizator;
-#endif 
-
-	}
-}
-#endif
-
-void InternalConnexion::zeroEH() {
-	int s = nLines * nColumns;
-	std::fill(&H[0], &H[s], 0.0f);
-	std::fill(&E[0], &E[s], 0.0f);
-}
-
-
-void InternalConnexion::zeroWlifetime()
+InternalConnexion::InternalConnexion(const InternalConnexion& gc)
 {
-	int s = nLines * nColumns;
-	std::fill(&wLifetime[0], &wLifetime[s], 0.0f);
+	nRows = gc.nRows;
+	nColumns = gc.nColumns;
+
+	int s = getNParameters();
+
+	storage = std::make_unique<float[]>(s);
+	std::copy(gc.storage.get(), gc.storage.get() + s, storage.get());
+
+	createArraysFromStorage();
 }
 
-#ifdef RANDOM_WB
-void InternalConnexion::randomInitWB()
-{
-	int s = nLines * nColumns;
-	if (s == 0) return;
-	float normalizator = .3f * powf((float)s, -.5f); // xavier
-	
 
-	for (int i = 0; i < s; i++) {
-		w[i] = .2f * (UNIFORM_01 - .5f);
-		//w[i] = NORMAL_01 * normalizator;
+void InternalConnexion::createArraysFromStorage()
+{
+	int s = nRows * nColumns;
+
+	float* _storagePtr = storage.get();
+
+	matrices.reserve(N_MATRICES);
+	for (int i = 0; i < N_MATRICES; i++)
+	{
+		matrices.emplace_back(_storagePtr, nRows, nColumns);
+		_storagePtr += s;
 	}
 
-	for (int i = 0; i < nLines; i++) {
-		biases[i] = NORMAL_01 * .1f;
-		//biases[i] = 0.0f;
+	vectors.reserve(N_VECTORS);
+	for (int i = 0; i < N_VECTORS; i++)
+	{
+		vectors.emplace_back(_storagePtr, nRows);
+		_storagePtr += nRows;
 	}
 }
-#endif
 
+
+InternalConnexion::InternalConnexion(std::ifstream& is)
+{
+	READ_4B(nRows, is);
+	READ_4B(nColumns, is);
+
+	storage = std::make_unique<float[]>(getNParameters());
+	is.read(reinterpret_cast<char*>(storage.get()), getNParameters() * sizeof(float));
+
+	createArraysFromStorage();
+}
+
+
+void InternalConnexion::save(std::ofstream& os)
+{
+	WRITE_4B(nRows, os);
+	WRITE_4B(nColumns, os);
+
+	os.write(reinterpret_cast<const char*>(storage.get()), getNParameters() * sizeof(float));
+}

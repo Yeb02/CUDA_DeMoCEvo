@@ -1,144 +1,187 @@
 #pragma once
 
+
 #include "Network.h"
 #include <iostream>
 
 
-// Everything is set up externally
-Network::Network(int inputSize, int outputSize, float* seed) :
-	inputSize(inputSize), outputSize(outputSize), seed(seed)
+
+int Network::activationArraySize = 0;
+int* Network::inS = nullptr;
+int* Network::outS = nullptr;
+int* Network::nC = nullptr;
+int Network::nLayers = 0;
+
+
+
+Network::Network()
 {
-	nInferencesOverLifetime = 0;
-	topNode.reset(NULL);
+	// Quantites created in createdPhenotype:
+	rootNode.reset(NULL);
+	activations.reset(NULL);
+	accumulators.reset(NULL);
 }
 
 
-float* Network::getOutput() {
-	return topNode->destinationArray;
+Network::Network(const Network& pcn)
+	
+{
+
+	rootNode.reset(new Node(*(pcn.rootNode.get())));
+
+	activations = std::make_unique<float[]>(activationArraySize);
+
+	// if changed here, change createPhenotype too.
+	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f);
+	for (int i = 0; i < activationArraySize; i++) {
+		activations[i] = NORMAL_01 * .3f;
+	}
+
+	accumulators = std::make_unique<float[]>(activationArraySize);
+
+	// The following values will be modified by each node of the phenotype as the pointers are set.
+	float* ptr_activations = activations.get() + outS[0];
+	float* ptr_accumulators = accumulators.get() + outS[0];
+	float* outputActivations = activations.get();
+	float* outputAccumulators = accumulators.get();
+
+	rootNode->setArrayPointers(
+		&ptr_activations,
+		&ptr_accumulators,
+		outputActivations,
+		outputAccumulators
+	);
+
+	setInitialActivations(pcn.activations.get());
 }
 
 
-void Network::postTrialUpdate() {
-
+float* Network::getOutput()
+{
+#ifdef ACTION_L_OBS_O
+	return rootNode->inputActivations.data();
+#else
+	return rootNode->outputActivations.data();
+#endif
 }
 
 
 void Network::destroyPhenotype() {
-	topNode.reset(NULL);
-	inputArray.reset(NULL);
-	destinationArray.reset(NULL);
-#ifdef SATURATION_PENALIZING
-	averageActivation.reset(NULL);
-#endif
-#ifdef STDP
-	accumulatedPreSynActs.reset(NULL);
-#endif
+	rootNode.reset(NULL);
 
+	activations.reset(NULL);
+	accumulators.reset(NULL);
 }
 
 
-void Network::createPhenotype(int* inS, int* outS, int* nC, int*nN, int nL) {
-	if (topNode.get() == NULL) 
+void Network::createPhenotype(GeneratorNode* rootGenerator, int perturbationID, bool negative)
+{
+
+	if (rootNode.get() != NULL)
 	{
-		topNode.reset(new Node(inS, outS, nC));
-
-		preSynActsArraySize = 0;
-		postSynActArraySize = 0;
-#ifdef SATURATION_PENALIZING
-		averageActivationArraySize = 0;
-#endif
-		for (int i = 0; i < nL; i++) 
-		{
-			int cIs = nC[i] == 0 ? 0 : inS[i+1];
-			preSynActsArraySize += nN[i] *
-				(outS[i] + MODULATION_VECTOR_SIZE + cIs * nC[i]);
-
-			int cOs = nC[i] == 0 ? 0 : outS[i + 1];
-			postSynActArraySize += nN[i] *
-				(inS[i] + MODULATION_VECTOR_SIZE + cOs * nC[i]);
-
-#ifdef SATURATION_PENALIZING
-			averageActivationArraySize += nN[i] *
-				(MODULATION_VECTOR_SIZE + cIs * nC[i]);
-#endif
-		}
-
-		destinationArray = std::make_unique<float[]>(preSynActsArraySize);
-		inputArray = std::make_unique<float[]>(postSynActArraySize);
-
-		float* ptr_accumulatedPreSynActs = nullptr;
-#ifdef STDP
-		accumulatedPreSynActs = std::make_unique<float[]>(preSynActsArraySize);
-		ptr_accumulatedPreSynActs = accumulatedPreSynActs.get();
-#endif
-
-		float* ptr_averageActivation = nullptr;
-#ifdef SATURATION_PENALIZING
-		averageActivation = std::make_unique<float[]>(averageActivationArraySize);
-		ptr_averageActivation = averageActivation.get();
-
-		saturationPenalization = 0.0f;
-		topNode->setglobalSaturationAccumulator(&saturationPenalization);
-		std::fill(averageActivation.get(), averageActivation.get() + averageActivationArraySize, 0.0f);
-#endif
-
-		
-		// The following values will be modified by each node of the phenotype as the pointers are set.
-		float* ptr_postSynActs = inputArray.get();
-		float* ptr_preSynActs = destinationArray.get();
-		topNode->setArrayPointers(
-			&ptr_postSynActs,
-			&ptr_preSynActs,
-			&ptr_averageActivation,
-			&ptr_accumulatedPreSynActs
-		);
-
-		nInferencesOverLifetime = 0;
+		std::cerr << "Called createPhenotype on a Network that already had a phenotype !" << std::endl;
+		return;
 	}
+
+
+	rootNode.reset(new Node(*rootGenerator, perturbationID, negative));
+
+
+	activations = std::make_unique<float[]>(activationArraySize);
+
+	// if changed here, change (teacher) copy constructor too.
+	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f);
+	for (int i = 0; i < activationArraySize; i++) {
+		activations[i] = NORMAL_01 * .3f;
+	}
+
+	accumulators = std::make_unique<float[]>(activationArraySize);
+
+	// The following values will be modified by each node of the phenotype as the pointers are set.
+	float* ptr_activations = activations.get() + outS[0];
+	float* ptr_accumulators = accumulators.get() + outS[0];
+	float* outputActivations = activations.get();
+	float* outputAccumulators = accumulators.get();
+
+	rootNode->setArrayPointers(
+		&ptr_activations,
+		&ptr_accumulators,
+		outputActivations,
+		outputAccumulators
+	);
+
 };
 
 
 void Network::preTrialReset() {
-
-	std::fill(inputArray.get(), inputArray.get() + postSynActArraySize, 0.0f);
-	//std::fill(destinationArray.get(), destinationArray.get() + preSynActsArraySize, 0.0f); // is already set to the biases.
-#ifdef STDP
-	std::fill(accumulatedPreSynActs.get(), accumulatedPreSynActs.get() + preSynActsArraySize, 0.0f);
-#endif
-	
-	topNode->preTrialReset();
+	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f); // ?
 };
 
 
-void Network::step(const std::vector<float>& obs) 
+void Network::step(float* input, bool supervised, float* target)
 {
-	nInferencesOverLifetime++;
-	std::copy(obs.begin(), obs.end(), topNode->inputArray);
-	std::fill(topNode->totalM, topNode->totalM + MODULATION_VECTOR_SIZE, 0.0f);
-	topNode->forward();
-}
+	// TODO evolve per module ? If you change it here, it must also be updated in PC_Node_P::xUpdate_simultaneous() 
+	constexpr float xlr = .5f;
 
 
-#ifdef SATURATION_PENALIZING
-float Network::getSaturationPenalization()
-{
-
-	float p1 = averageActivationArraySize != 0 ? saturationPenalization / (nInferencesOverLifetime * averageActivationArraySize) : 0.0f;
-
-
-	float p2 = 0.0f;
-	float invNInferencesN = 1.0f / nInferencesOverLifetime;
-	for (int i = 0; i < averageActivationArraySize; i++) {
-		p2 += powf(abs(averageActivation[i]) * invNInferencesN, 6.0f);
-	}
-	p2 /= (float) averageActivationArraySize;
-	
-
-
-	constexpr float µ = .5f;
-	return µ * p1 + (1 - µ) * p2;
-}
+#ifdef ACTION_L_OBS_O
+	MVector vtarget(target, inS[0]);
 #endif
+
+#ifdef ACTION_L_OBS_O
+	std::copy(input, input + outS[0], rootNode->outputActivations.data());
+#else
+	std::copy(input, input + inS[0], rootNode->inputActivations.data());
+	if (supervised) {
+		std::copy(target, target + outS[0], rootNode->outputActivations.data());
+	}
+#endif
+
+
+
+	// inference
+	for (int i = 0; i < 10; i++)
+	{
+		std::fill(accumulators.get(), accumulators.get() + activationArraySize, 0.0f);
+
+
+#ifdef ACTION_L_OBS_O
+
+
+		if (supervised) {
+			// store -epsilon_in in the root's inputAccumulators.
+			// Even if ACTIVATION_VARIANCE is defined, do not multiply by invSigmas. The root handles it.
+			rootNode->inputAccumulators = vtarget - rootNode->inputActivations;
+		}
+		rootNode->xUpdate_simultaneous();
+		rootNode->inputActivations += xlr * rootNode->inputAccumulators;
+
+		// TODO outputActivations (i.e. observations) update ? Update mask ? low lr ? ...
+#else 
+
+
+		rootNode->xUpdate_simultaneous();
+		if (!supervised) {
+			rootNode->outputActivations += xlr * rootNode->outputAccumulators;
+		}
+
+
+#endif
+	}
+
+	// learning
+
+
+#ifdef MODULATED
+	rootNode->thetaUpdate_simultaneous();
+#else
+	// if the network does not use modulation and is not supervised, there is nothing to learn, so thetaUpdate is pointless.
+	if (supervised) {
+		rootNode->thetaUpdate_simultaneous();
+	}
+#endif
+
+}
 
 
 void Network::save(std::ofstream& os)
@@ -146,21 +189,15 @@ void Network::save(std::ofstream& os)
 	int version = 0;
 	WRITE_4B(version, os); // version
 
-	WRITE_4B(inputSize, os);
-	WRITE_4B(outputSize, os);
+	// TODO. Write the phenotypic parameters and references to the genotypic ones.
 
-	// TODO seeds.
 }
 
-Network::Network(std::ifstream& is)
+
+Network::Network(std::ifstream& is) 
 {
-	int version;
-	READ_4B(version, is);
-	
-	READ_4B(inputSize, is);
-	READ_4B(outputSize, is);
+	/*int version;
+	READ_4B(version, is);*/
 
-	// TODO seeds. Fill an array used externally by generators
-
-	topNode.reset(NULL);
+	// TODO.
 }

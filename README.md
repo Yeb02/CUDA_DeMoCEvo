@@ -11,7 +11,7 @@ The agent's architecture is very similar to that in the [MoEv](https://github.co
 
 A genetic algorithm (GA) that evolves agents with the same topology maintains a population of genomes, vectors of $\mathbb{R}^n$. As the size of the population grows towards infinity, the genomes can be seen as samples from a probability distribution over $\mathbb{R}^n$. 
 
-DeMoCEvo implements this idea, maintaining and updating a continuous probability distribution over genomes instead of a discrete population. The distribution is modeled with hyper-networks, i.e. network-generating networks, using libtorch for deep learning. There are 2 algorithms available to meta-learn the hyper-networks weights: the first one is inspired by the [Evolution Strategy](https://arxiv.org/pdf/1703.03864.pdf) (ES) algorithm, and will be the one used in the detailed explanations down below. The other is based on monte-carlo tree search, and is still experimental.
+DeMoCEvo implements this idea, maintaining and updating a continuous probability distribution over genomes instead of a discrete population. The distribution is modeled with hyper-networks, i.e. network-generating networks, using libtorch for deep learning. There are 2 algorithms implemented to meta-learn the hyper-networks weights: the first one is inspired by the [Evolution Strategy](https://arxiv.org/pdf/1703.03864.pdf) (ES) algorithm, and will be the one used in the detailed explanations down below. The other is based on monte-carlo tree search, and is still experimental.
 
 The main advantage of this algorithm over a traditional GA is the ability to share meta-learning (within the population/distribution) semantically through the hyper-networks weight updates, instead of handcrafted, non-semantic, crossover operations. 
 

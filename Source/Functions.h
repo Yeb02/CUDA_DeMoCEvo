@@ -16,5 +16,7 @@ void normalizeArray(float* src, float* dst, int size);
 
 // src is unchanged. src can be the same array as dst.
 // Dst values in [-1, 1], -1 attibuted to the worst of src and 1 to the best.
-void rankArray(float* src, float* dst, int size);
+// *highestID is set to the indice of the max of src.
+void rankArray(float* src, float* dst, int size, int* highestID = nullptr);
+
 

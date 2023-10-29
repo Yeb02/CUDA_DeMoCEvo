@@ -101,7 +101,7 @@
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\MNIST.cpp" />
     <ClCompile Include="Source\Network.cpp" />
-    <ClCompile Include="Source\Node.cpp" />
+    <ClCompile Include="Source\Module.cpp" />
     <ClCompile Include="Source\Random.cpp" />
     <ClCompile Include="Source\Trial.cpp" />
   </ItemGroup>
@@ -114,7 +114,7 @@
     <ClInclude Include="Source\DeMoCEvoMacros.h" />
     <ClInclude Include="Source\MNIST.h" />
     <ClInclude Include="Source\Network.h" />
-    <ClInclude Include="Source\Node.h" />
+    <ClInclude Include="Source\Module.h" />
     <ClInclude Include="Source\Random.h" />
     <ClInclude Include="Source\System.h" />
     <ClInclude Include="Source\TorchNNs.h" />

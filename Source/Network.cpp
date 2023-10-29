@@ -13,97 +13,89 @@ int* Network::nC = nullptr;
 int Network::nLayers = 0;
 
 
-
-Network::Network()
-{
-	// Quantites created in createdPhenotype:
-	rootNode.reset(NULL);
-	activations.reset(NULL);
-	accumulators.reset(NULL);
-}
-
-
 Network::Network(const Network& pcn)
-	
 {
+	rootModule.reset(new Module(*(pcn.rootModule.get())));
 
-	rootNode.reset(new Node(*(pcn.rootNode.get())));
 
-	activations = std::make_unique<float[]>(activationArraySize);
-
-	// if changed here, change createPhenotype too.
-	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f);
-	for (int i = 0; i < activationArraySize; i++) {
-		activations[i] = NORMAL_01 * .3f;
+	if (*device == torch::kCPU) {
+		activations = new float[activationArraySize];
+		accumulators = new float[activationArraySize];
+	}
+	else {
+		activations = cudaMalloc(*device, activationArraySize);
+		accumulators = cudaMalloc(*device, activationArraySize);
 	}
 
-	accumulators = std::make_unique<float[]>(activationArraySize);
+	accumulatorsTensor = torch::from_blob(accumulators, { activationArraySize,1 }, torch::TensorOptions().device(*device));
+	activationsTensor = torch::from_blob(activations, { activationArraySize,1 }, torch::TensorOptions().device(*device));
+	
+	activationsTensor = pcn.activationsTensor.clone(); TODO;
+	accumulatorsTensor = pcn.accumulatorsTensor.clone(); TODO;
+
 
 	// The following values will be modified by each node of the phenotype as the pointers are set.
-	float* ptr_activations = activations.get() + outS[0];
-	float* ptr_accumulators = accumulators.get() + outS[0];
-	float* outputActivations = activations.get();
-	float* outputAccumulators = accumulators.get();
+	float* ptr_activations = activations + outS[0];
+	float* ptr_accumulators = accumulators + outS[0];
+	float* outputActivations = activations;
+	float* outputAccumulators = accumulators;
 
-	rootNode->setArrayPointers(
+	rootModule->setArrayPointers(
 		&ptr_activations,
 		&ptr_accumulators,
 		outputActivations,
 		outputAccumulators
 	);
 
-	setInitialActivations(pcn.activations.get());
+}
+
+
+void Network::deepCopy(const Network& pcn)
+{
+	rootModule->deepCopy(*(pcn.rootModule.get()));
+
+	activationsTensor = pcn.activationsTensor.clone(); TODO;
+	accumulatorsTensor = pcn.accumulatorsTensor.clone(); TODO;
 }
 
 
 float* Network::getOutput()
 {
 #ifdef ACTION_L_OBS_O
-	return rootNode->inputActivations.data();
+	return rootModule->inputActivations.data_ptr<float>();
 #else
-	return rootNode->outputActivations.data();
+	return rootModule->outputActivations.data_ptr<float>();
 #endif
 }
 
 
-void Network::destroyPhenotype() {
-	rootNode.reset(NULL);
-
-	activations.reset(NULL);
-	accumulators.reset(NULL);
-}
-
-
-void Network::createPhenotype(GeneratorNode* rootGenerator, int perturbationID, bool negative)
+Network::Network(GeneratorNode* rootGenerator)
 {
+	device = rootGenerator->device;
 
-	if (rootNode.get() != NULL)
-	{
-		std::cerr << "Called createPhenotype on a Network that already had a phenotype !" << std::endl;
-		return;
+	rootModule = std::make_unique<Module>(*rootGenerator);
+
+	if (*device == torch::kCPU) {
+		activations = new float[activationArraySize];
+		accumulators = new float[activationArraySize];
+	}
+	else {
+		activations = cudaMalloc(*device,  activationArraySize);
+		accumulators = cudaMalloc(*device,  activationArraySize);
 	}
 
-
-	rootNode.reset(new Node(*rootGenerator, perturbationID, negative));
-
-
-	activations = std::make_unique<float[]>(activationArraySize);
-
-	// if changed here, change (teacher) copy constructor too.
-	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f);
-	for (int i = 0; i < activationArraySize; i++) {
-		activations[i] = NORMAL_01 * .3f;
-	}
-
-	accumulators = std::make_unique<float[]>(activationArraySize);
-
+	
+	accumulatorsTensor = torch::from_blob(accumulators, { activationArraySize,1 }, torch::TensorOptions().device(*device));
+	activationsTensor = torch::from_blob(activations, { activationArraySize,1 }, torch::TensorOptions().device(*device));
+	activationsTensor.normal_(.0f, .3f);
+	
 	// The following values will be modified by each node of the phenotype as the pointers are set.
-	float* ptr_activations = activations.get() + outS[0];
-	float* ptr_accumulators = accumulators.get() + outS[0];
-	float* outputActivations = activations.get();
-	float* outputAccumulators = accumulators.get();
+	float* ptr_activations = activations + outS[0];
+	float* ptr_accumulators = accumulators + outS[0];
+	float* outputActivations = activations;
+	float* outputAccumulators = accumulators;
 
-	rootNode->setArrayPointers(
+	rootModule->setArrayPointers(
 		&ptr_activations,
 		&ptr_accumulators,
 		outputActivations,
@@ -113,8 +105,15 @@ void Network::createPhenotype(GeneratorNode* rootGenerator, int perturbationID, 
 };
 
 
+void Network::generatePhenotype(GeneratorNode* rootGenerator, int perturbationID, bool negative) {
+	activationsTensor.normal_(.0f, .3f);
+	//accumulatorsTensor.zero_(); unnecessary, already happens in step().
+	rootModule->generatePhenotype(*rootGenerator, perturbationID, negative);
+}
+
+
 void Network::preTrialReset() {
-	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f); // ?
+	// zero activations ? probably not.
 };
 
 
@@ -129,11 +128,11 @@ void Network::step(float* input, bool supervised, float* target)
 #endif
 
 #ifdef ACTION_L_OBS_O
-	std::copy(input, input + outS[0], rootNode->outputActivations.data());
+	std::copy(input, input + outS[0], rootModule->outputActivations.data());
 #else
-	std::copy(input, input + inS[0], rootNode->inputActivations.data());
+	std::copy(input, input + inS[0], rootModule->inputActivations.data());
 	if (supervised) {
-		std::copy(target, target + outS[0], rootNode->outputActivations.data());
+		std::copy(target, target + outS[0], rootModule->outputActivations.data());
 	}
 #endif
 
@@ -142,42 +141,39 @@ void Network::step(float* input, bool supervised, float* target)
 	// inference
 	for (int i = 0; i < 10; i++)
 	{
-		std::fill(accumulators.get(), accumulators.get() + activationArraySize, 0.0f);
-
-
+		accumulatorsTensor.zero_();
+		
 #ifdef ACTION_L_OBS_O
 
 
 		if (supervised) {
 			// store -epsilon_in in the root's inputAccumulators.
 			// Even if ACTIVATION_VARIANCE is defined, do not multiply by invSigmas. The root handles it.
-			rootNode->inputAccumulators = vtarget - rootNode->inputActivations;
+			rootModule->inputAccumulators = vtarget - rootModule->inputActivations;
 		}
-		rootNode->xUpdate_simultaneous();
-		rootNode->inputActivations += xlr * rootNode->inputAccumulators;
+		rootModule->xUpdate_simultaneous();
+		rootModule->inputActivations += xlr * rootModule->inputAccumulators;
 
 		// TODO outputActivations (i.e. observations) update ? Update mask ? low lr ? ...
 #else 
 
 
-		rootNode->xUpdate_simultaneous();
+		rootModule->xUpdate_simultaneous();
 		if (!supervised) {
-			rootNode->outputActivations += xlr * rootNode->outputAccumulators;
+			rootModule->outputActivations += xlr * rootModule->outputAccumulators;
 		}
 
 
 #endif
 	}
 
-	// learning
-
-
+	// learning:
 #ifdef MODULATED
-	rootNode->thetaUpdate_simultaneous();
+	rootModule->thetaUpdate_simultaneous();
 #else
 	// if the network does not use modulation and is not supervised, there is nothing to learn, so thetaUpdate is pointless.
 	if (supervised) {
-		rootNode->thetaUpdate_simultaneous();
+		rootModule->thetaUpdate_simultaneous();
 	}
 #endif
 
@@ -187,9 +183,9 @@ void Network::step(float* input, bool supervised, float* target)
 void Network::save(std::ofstream& os)
 {
 	int version = 0;
-	WRITE_4B(version, os); // version
+	WRITE_4B(version, os); 
 
-	// TODO. Write the phenotypic parameters and references to the genotypic ones.
+	// TODO. 
 
 }
 

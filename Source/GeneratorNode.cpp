@@ -5,22 +5,27 @@
 int ConnexionGenerator::nPerturbations = 0;
 
 
-ConnexionGenerator::ConnexionGenerator(int _nRows, int _nCols, int seedSize, float optimizerLR) :
+ConnexionGenerator::ConnexionGenerator(int _nRows, int _nCols, int seedSize, float optimizerLR, torch::Device* _device) :
 	nRows(_nRows), nCols(_nCols)
 {
+	device = _device;
+
 	int embDim = 3 + (int)(.5f * log2f((float)(nCols * nRows)));
 
 	std::vector<at::Tensor> optimizedParameters;
 	
 	for (int i = 0; i < N_MATRICES; i++) {
 		matrixGenerators[i] = new MatrixGenerator(seedSize, nCols, nRows, embDim);
+		matrixGenerators[i]->to(*device);
+		
 		std::vector<at::Tensor> params = matrixGenerators[i]->parameters();
 		optimizedParameters.insert(optimizedParameters.end(), params.begin(), params.end());
 
-		matrixPerturbations[i] = new Eigen::MatrixXf * [nPerturbations];
+		matrixPerturbations[i] = new torch::Tensor[nPerturbations];
 		for (int j = 0; j < nPerturbations; j++)
 		{
-			matrixPerturbations[i][j] = new Eigen::MatrixXf(nRows,nCols);
+			matrixPerturbations[i][j] = torch::Tensor(torch::IntArrayRef{ nRows, nCols },
+				torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 		}
 	}
 
@@ -30,10 +35,11 @@ ConnexionGenerator::ConnexionGenerator(int _nRows, int _nCols, int seedSize, flo
 		std::vector<at::Tensor> params = vectorGenerators[i]->parameters();
 		optimizedParameters.insert(optimizedParameters.end(), params.begin(), params.end());
 
-		vectorPerturbations[i] = new Eigen::VectorXf * [nPerturbations];
+		vectorPerturbations[i] = new torch::Tensor[nPerturbations];
 		for (int j = 0; j < nPerturbations; j++)
 		{
-			vectorPerturbations[i][j] = new Eigen::VectorXf(nRows);
+			vectorPerturbations[i][j] = torch::Tensor(torch::IntArrayRef{ nRows, 1 },
+				torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 		}
 	}
 
@@ -52,19 +58,11 @@ ConnexionGenerator::~ConnexionGenerator()
 	for (int i = 0; i < N_MATRICES; i++) {
 		delete matrixGenerators[i];
 
-		for (int j = 0; j < nPerturbations; j++)
-		{
-			delete[] matrixPerturbations[i][j];
-		}
 		delete[] matrixPerturbations[i];
 	}
 	for (int i = 0; i < N_VECTORS; i++) {
 		delete vectorGenerators[i];
 
-		for (int j = 0; j < nPerturbations; j++)
-		{
-			delete[] vectorPerturbations[i][j];
-		}
 		delete[] vectorPerturbations[i];
 	}
 }
@@ -88,58 +86,50 @@ void ConnexionGenerator::generatePerturbations(float perturbationMagnitude)
 	for (int i = 0; i < nPerturbations; i++)
 	{
 		for (int j = 0; j < N_MATRICES; j++) {
-			for (int r = 0; r < nRows; r++) {
-				for (int c = 0; c < nCols; c++) {
-					(*matrixPerturbations[j][i])(r,c) = NORMAL_01 * perturbationMagnitude;
-				}
-			}
+			matrixPerturbations[j][i].normal_(0.0f, perturbationMagnitude);
 		}
 		for (int j = 0; j < N_VECTORS; j++) {
-			for (int r = 0; r < nRows; r++) {
-				(*vectorPerturbations[j][i])(r) = NORMAL_01 * perturbationMagnitude;
-			}
+			vectorPerturbations[j][i].normal_(0.0f, perturbationMagnitude);
 		}
 	}
 }
 
 
-void ConnexionGenerator::createPhenotypeArrays(std::vector<MMatrix>& phenotypeMatrices, std::vector<MVector>& phenotypeVectors, int perturbationID, bool negative)
+void ConnexionGenerator::createPhenotypeArrays(std::vector<torch::Tensor>& phenotypeMatrices, std::vector<torch::Tensor>& phenotypeVectors, int perturbationID, bool negative)
 {
+
 	for (int i = 0; i < N_MATRICES; i++) {
-		MMatrix gm(generatedMatrices[i].data_ptr<float>(), nRows, nCols);
 
 		if (perturbationID == -1) {
-			phenotypeMatrices[i].noalias() = gm;
+			phenotypeMatrices[i] = generatedMatrices[i].clone();
 			continue;
 		}
 		if (negative) {
-			phenotypeMatrices[i].noalias() = *matrixPerturbations[i][perturbationID] - gm;
+			phenotypeMatrices[i] = generatedMatrices[i] - matrixPerturbations[i][perturbationID];
 		}
 		else {
-			phenotypeMatrices[i].noalias() = *matrixPerturbations[i][perturbationID] + gm;
+			phenotypeMatrices[i] = generatedMatrices[i] + matrixPerturbations[i][perturbationID];
 		}
 		
 	}
 
 	for (int i = 0; i < N_VECTORS; i++) 
 	{
-		MVector gv(generatedVectors[i].data_ptr<float>(), nRows);
-
 		if (perturbationID == -1) {
-			phenotypeVectors[i].noalias() = gv;
+			phenotypeVectors[i] = generatedVectors[i].clone();
 			continue;
 		}
 		if (negative) {
-			phenotypeVectors[i].noalias() = *vectorPerturbations[i][perturbationID] - gv;
+			phenotypeVectors[i] = generatedVectors[i] - vectorPerturbations[i][perturbationID];
 		}
 		else {
-			phenotypeVectors[i].noalias() = *vectorPerturbations[i][perturbationID] + gv;
+			phenotypeVectors[i] = generatedVectors[i] + vectorPerturbations[i][perturbationID];
 		}
 
 		if (i == 1) {
 			// applies to (inv) sigmas #ifdef ACTIVATION_VARIANCE. Maps to [0.1,1.0]
-			constexpr float f = 1.1f;
-			phenotypeVectors[i] = (phenotypeVectors[i].array().tanh() + f) * (1.0f/(f+1.0f)) ;
+			constexpr float f = .1f;
+			phenotypeVectors[i] = torch::sigmoid(phenotypeVectors[i]) * (1.0-f) + f;
 		}
 	}
 }
@@ -148,11 +138,10 @@ void ConnexionGenerator::createPhenotypeArrays(std::vector<MMatrix>& phenotypeMa
 void ConnexionGenerator::accumulateGradient(float* coefficients)
 {
 	for (int i = 0; i < N_MATRICES; i++) {
-		torch::Tensor target = generatedMatrices[i].clone(); 
+		torch::Tensor target = generatedMatrices[i].clone();
 
-		MMatrix tm(target.data_ptr<float>(), nRows, nCols);
 		for (int j = 0; j < nPerturbations; j++) {
-			tm += ((*matrixPerturbations[i][j]).array() * coefficients[j]).matrix();
+			target += matrixPerturbations[i][j] * coefficients[j];
 		}
 
 		torch::Tensor loss = torch::mse_loss(generatedMatrices[i], target);
@@ -163,9 +152,8 @@ void ConnexionGenerator::accumulateGradient(float* coefficients)
 	for (int i = 0; i < N_VECTORS; i++) {
 		torch::Tensor target = generatedVectors[i].clone();
 
-		MMatrix tv(target.data_ptr<float>(), nRows);
 		for (int j = 0; j < nPerturbations; j++) {
-			tv += ((*vectorPerturbations[i][j]).array() * coefficients[j]).matrix();
+			target += vectorPerturbations[i][j] * coefficients[j];
 		}
 
 		torch::Tensor loss = torch::mse_loss(generatedVectors[i], target);

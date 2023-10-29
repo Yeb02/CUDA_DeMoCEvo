@@ -3,12 +3,10 @@
 #include "InternalConnexion.h"
 
 
-InternalConnexion::InternalConnexion(int nRows, int nColumns) :
-	nColumns(nColumns), nRows(nRows)
+InternalConnexion::InternalConnexion(int nRows, int nColumns, torch::Device* _device) :
+	nColumns(nColumns), nRows(nRows), device(_device)
 {
-	storage = std::make_unique<float[]>(getNParameters());
-
-	createArraysFromStorage();
+	createTensors();
 }
 
 
@@ -16,34 +14,41 @@ InternalConnexion::InternalConnexion(const InternalConnexion& gc)
 {
 	nRows = gc.nRows;
 	nColumns = gc.nColumns;
+	device = gc.device;
 
-	int s = getNParameters();
+	createTensors();
 
-	storage = std::make_unique<float[]>(s);
-	std::copy(gc.storage.get(), gc.storage.get() + s, storage.get());
-
-	createArraysFromStorage();
+	deepCopy(gc);
 }
 
 
-void InternalConnexion::createArraysFromStorage()
+void InternalConnexion::deepCopy(const InternalConnexion& gc) {
+	matrices.resize(N_MATRICES);
+	for (int i = 0; i < N_MATRICES; i++)
+	{
+		matrices[i] = gc.matrices[i].clone();
+	}
+
+	vectors.resize(N_VECTORS);
+	for (int i = 0; i < N_VECTORS; i++)
+	{
+		vectors[i] = gc.vectors[i].clone();
+	}
+}
+
+
+void InternalConnexion::createTensors()
 {
-	int s = nRows * nColumns;
-
-	float* _storagePtr = storage.get();
-
 	matrices.reserve(N_MATRICES);
 	for (int i = 0; i < N_MATRICES; i++)
 	{
-		matrices.emplace_back(_storagePtr, nRows, nColumns);
-		_storagePtr += s;
+		matrices.emplace_back(torch::IntArrayRef{ nRows, nColumns }, torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 	}
 
 	vectors.reserve(N_VECTORS);
 	for (int i = 0; i < N_VECTORS; i++)
 	{
-		vectors.emplace_back(_storagePtr, nRows);
-		_storagePtr += nRows;
+		vectors.emplace_back(torch::IntArrayRef{ nRows, 1 }, torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 	}
 }
 
@@ -52,11 +57,6 @@ InternalConnexion::InternalConnexion(std::ifstream& is)
 {
 	READ_4B(nRows, is);
 	READ_4B(nColumns, is);
-
-	storage = std::make_unique<float[]>(getNParameters());
-	is.read(reinterpret_cast<char*>(storage.get()), getNParameters() * sizeof(float));
-
-	createArraysFromStorage();
 }
 
 
@@ -64,6 +64,4 @@ void InternalConnexion::save(std::ofstream& os)
 {
 	WRITE_4B(nRows, os);
 	WRITE_4B(nColumns, os);
-
-	os.write(reinterpret_cast<const char*>(storage.get()), getNParameters() * sizeof(float));
 }

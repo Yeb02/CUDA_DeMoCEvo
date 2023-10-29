@@ -1,48 +1,37 @@
 #pragma once
 
-#include "Node.h"
+#include "Module.h"
 
 
-Node::Node(int* inS, int* outS, int* nC) :
-	inCoutActivations(nullptr, 0), outputActivations(nullptr, 0), inputActivations(nullptr, 0),
-	inCoutAccumulators(nullptr, 0), outputAccumulators(nullptr, 0), inputAccumulators(nullptr, 0),
-	inputSize(inS[0]), outputSize(outS[0]), nChildren(nC[0]),
-	toChildren(),
-	toOutput(outS[0], computeNCols(inS, outS, nC))
-{
-	children.reserve(nC[0]);
-	toChildren.reserve(nC[0]);
 
-	int nCols = computeNCols(inS, outS, nC);
-	int cIS = nC[0] > 0 ? inS[1] : 0;
-
-	for (int j = 0; j < nC[0]; j++) {
-		children.emplace_back(inS+1, outS+1, nC+1);
-		toChildren.emplace_back(cIS, nCols);
-	}
-};
-
-Node::Node(GeneratorNode& _generator, int perturbationID, bool negative) :
-	inCoutActivations(nullptr, 0), outputActivations(nullptr, 0), inputActivations(nullptr, 0),
-	inCoutAccumulators(nullptr, 0), outputAccumulators(nullptr, 0), inputAccumulators(nullptr, 0),
+Module::Module(GeneratorNode& _generator) :
 	inputSize(_generator.inputSize), outputSize(_generator.outputSize), nChildren(_generator.nChildren),
 	toChildren(),
-	toOutput(_generator.outputSize, _generator.nColumns)
+	toOutput(_generator.outputSize, _generator.nColumns, _generator.device),
+	device(_generator.device)
 {
-
-	_generator.toOutputGenerator.createPhenotypeArrays(
-		toOutput.matrices,
-		toOutput.vectors,
-		perturbationID,
-		negative
-		);
 
 	children.reserve(nChildren);
 	toChildren.reserve(nChildren);
 	for (int j = 0; j < nChildren; j++) {
 		children.emplace_back(_generator.children[j]);
+		toChildren.emplace_back(_generator.children[j].inputSize, _generator.nColumns, device);
+	}
+}
 
-		toChildren.emplace_back(_generator.children[j].inputSize, _generator.nColumns);
+
+void Module::generatePhenotype(GeneratorNode& _generator, int perturbationID, bool negative)
+{
+	_generator.toOutputGenerator.createPhenotypeArrays(
+		toOutput.matrices,
+		toOutput.vectors,
+		perturbationID,
+		negative
+	);
+
+	for (int j = 0; j < nChildren; j++) {
+		children[j].generatePhenotype(_generator.children[j], perturbationID, negative);
+
 		_generator.toChildrenGenerators[j].createPhenotypeArrays(
 			toChildren[j].matrices,
 			toChildren[j].vectors,
@@ -52,22 +41,12 @@ Node::Node(GeneratorNode& _generator, int perturbationID, bool negative) :
 	}
 }
 
-Node::Node() :
-	inCoutActivations(nullptr, 0), outputActivations(nullptr, 0), inputActivations(nullptr, 0),
-	inCoutAccumulators(nullptr, 0), outputAccumulators(nullptr, 0), inputAccumulators(nullptr, 0),
-	toChildren(),
-	toOutput(0,0)
-{ 
-	__debugbreak();
-};
 
-
-Node::Node(const Node& n) :
+Module::Module(const Module& n) :
 	inputSize(n.inputSize), outputSize(n.outputSize), nChildren(n.nChildren),
 	toChildren(),
 	toOutput(n.toOutput),
-	inCoutActivations(nullptr, 0), outputActivations(nullptr, 0), inputActivations(nullptr, 0),
-	inCoutAccumulators(nullptr, 0), outputAccumulators(nullptr, 0), inputAccumulators(nullptr, 0)
+	device(n.device)
 {
 	children.reserve(nChildren);
 	toChildren.reserve(nChildren);
@@ -79,28 +58,40 @@ Node::Node(const Node& n) :
 }
 
 
-void Node::setArrayPointers(float** ptr_activations, float** ptr_accumulators, float* outActivations, float* outAccumulators)
+void Module::deepCopy(const Module& n)
+{
+	toOutput.deepCopy(n.toOutput);
+
+	for (int j = 0; j < nChildren; j++) {
+		children[j].deepCopy(n.children[j]);
+		toChildren[j].deepCopy(n.toChildren[j]);
+	}
+}
+
+
+void Module::setArrayPointers(float** ptr_activations, float** ptr_accumulators, float* outActivations, float* outAccumulators)
 {
 
-	// placement new is the recommended way: https://eigen.tuxfamily.org/dox/classEigen_1_1Map.html
 
 	// (toOutput and toChildren's matrices have the same number of columns, we could have used either)
-	new (&inCoutActivations) MVector(*ptr_activations, toOutput.nColumns);
-	new (&inCoutAccumulators) MVector(*ptr_accumulators, toOutput.nColumns);
+	inCoutActivations = torch::from_blob(*ptr_activations, { toOutput.nColumns,1 }, torch::TensorOptions().device(*device));
+	inCoutAccumulators = torch::from_blob(*ptr_accumulators, { toOutput.nColumns,1 }, torch::TensorOptions().device(*device));
 
-	new (&inputActivations) MVector(*ptr_activations, inputSize);
-	new (&inputAccumulators) MVector(*ptr_accumulators, inputSize);
+	inputActivations = torch::from_blob(*ptr_activations, { inputSize,1 }, torch::TensorOptions().device(*device));
+	inputAccumulators = torch::from_blob(*ptr_accumulators, { inputSize,1 }, torch::TensorOptions().device(*device));
 
-	new (&outputActivations) MVector(outActivations, outputSize);
-	new (&outputAccumulators) MVector(outAccumulators, outputSize);
+	inputActivations = torch::from_blob(outActivations, { outputSize,1 }, torch::TensorOptions().device(*device));
+	inputAccumulators = torch::from_blob(outAccumulators, { outputSize,1 }, torch::TensorOptions().device(*device));
+
+
+
+	float* actCoutPtr = *ptr_activations + inputSize;
+	float* accCoutPtr = *ptr_accumulators + inputSize;
 
 	int offset = (nChildren == 0 ? 0 : nChildren * children[0].outputSize) + inputSize;
 	*ptr_activations += offset;
 	*ptr_accumulators += offset;
 
-
-	float* actCoutPtr = inCoutActivations.data() + inputSize;
-	float* accCoutPtr = inCoutAccumulators.data() + inputSize;
 	for (int i = 0; i < children.size(); i++) {
 		children[i].setArrayPointers(ptr_activations, ptr_accumulators, actCoutPtr, accCoutPtr);
 		actCoutPtr += children[i].outputSize;// same for all i.
@@ -108,7 +99,8 @@ void Node::setArrayPointers(float** ptr_activations, float** ptr_accumulators, f
 	}
 }
 
-void Node::xUpdate_simultaneous()
+
+void Module::xUpdate_simultaneous()
 {
 	// TODO evolve per module ? If you change it here, it must also be updated in PC_Network::step
 	constexpr float xlr = .5f;
@@ -164,7 +156,7 @@ void Node::xUpdate_simultaneous()
 }
 
 
-void Node::thetaUpdate_simultaneous()
+void Module::thetaUpdate_simultaneous()
 {
 
 	// the lr is injected at places where it minimizes the number of multiplications, therefore

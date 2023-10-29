@@ -3,33 +3,41 @@
 #include <memory>
 #include "DeMoCEvoCore.h"
 
+#pragma warning( push, 0 )
+
+#include <torch/torch.h>
+
+#pragma warning( pop ) 
+
 
 struct InternalConnexion { 
 
 	int nRows, nColumns;
 
-	std::unique_ptr<float[]> storage;
+	torch::Device* device;
 
-	std::vector<MMatrix> matrices;
+	std::vector<torch::Tensor> matrices;
 
 	// vectors are of size nRows.
-	std::vector<MVector> vectors;
+	std::vector<torch::Tensor> vectors;
 
 
-	InternalConnexion(int nRows, int nColumns);
+	InternalConnexion(int nRows, int nColumns, torch::Device* _device);
 
 	//Should never be called
 	InternalConnexion() {};
 
 	InternalConnexion(const InternalConnexion& gc);
 
+	void deepCopy(const InternalConnexion& gc);
+
 	~InternalConnexion() {};
+
+	void createTensors();
 
 	int getNParameters() {
 		return nRows * nColumns * N_MATRICES + nRows * N_VECTORS;
 	}
-
-	void createArraysFromStorage();
 
 	InternalConnexion(std::ifstream& is);
 

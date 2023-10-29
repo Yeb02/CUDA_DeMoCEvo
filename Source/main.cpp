@@ -17,21 +17,11 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 #endif
 
 
-#include <eigen-3.4.0/Eigen/Core>
-
 using namespace std;
 
 
 int main()
 {
-#ifdef _OPENMP
-    //// https://docs.huihoo.com/eigen/3/TopicMultiThreading.html
-    //Eigen::initParallel();
-    //int nThreads = Eigen::nbThreads();
-    //omp_set_num_threads(nThreads);
-    //Eigen::setNbThreads(nThreads);
-#endif
-
 
 
     LOG_("Seed : " << seed);
@@ -110,7 +100,9 @@ int main()
     sParams.nEvaluationTrials = 4;
     sParams.nSupervisedTrials = 4;
     sParams.nTeachers = 4;
-    sParams.seedSize = 5;
+    sParams.seedSize = 10;
+    sParams.perturbationMagnitude = .1f;
+    sParams.potentialChange = 3.0f; // > 1.0f
 
     sParams.treeDepth = treeDepth;
     sParams.inSizePerL = inSizes;
@@ -118,11 +110,10 @@ int main()
     sParams.nChildrenPerL = nChildrenPerLayer;
 
 
+    bool libtorchUsesCuda = true;
+    System system(sParams, trial, libtorchUsesCuda);
+
     int nSteps = 10000;
-
-
-    System system(sParams, trial);
-
     system.evolve(nSteps);
 
     return 0;

@@ -15,18 +15,21 @@ struct ConnexionGenerator
 
 	std::unique_ptr<torch::optim::SGD> optimizer; // SGD ? Adadelta ? TODO
 
+	// cpu if cuda is not used/available, GPU otherwise.
+	torch::Device* device;
+
 	MatrixGenerator* matrixGenerators[N_MATRICES];
 	VectorGenerator* vectorGenerators[N_VECTORS];
 
 	torch::Tensor generatedMatrices[N_MATRICES];
 	torch::Tensor generatedVectors[N_VECTORS];
 
-	Eigen::MatrixXf** matrixPerturbations[N_MATRICES];
-	Eigen::VectorXf** vectorPerturbations[N_VECTORS];
+	torch::Tensor* matrixPerturbations[N_MATRICES];
+	torch::Tensor* vectorPerturbations[N_VECTORS];
 	
 	ConnexionGenerator() {};
 
-	ConnexionGenerator(int _nRows, int _nCols, int seedSize, float optimizerLR);
+	ConnexionGenerator(int _nRows, int _nCols, int seedSize, float optimizerLR, torch::Device* device);
 
 	~ConnexionGenerator();
 
@@ -39,7 +42,7 @@ struct ConnexionGenerator
 	void generatePerturbations(float perturbationMagnitude);
 
 	// If perturbationID == -1, no noise is added to the generated arrays. If negative=true, the noise is substracted instead of added.
-	void createPhenotypeArrays(std::vector<MMatrix>& phenotypeMatrices, std::vector<MVector>& phenotypeVectors, int perturbationID, bool negative);
+	void createPhenotypeArrays(std::vector<torch::Tensor>& phenotypeMatrices, std::vector<torch::Tensor>& phenotypeVectors, int perturbationID, bool negative);
 
 	// coefficients correspond to the contribution of each perturbation to the gradient.
 	void accumulateGradient(float* coefficients);
@@ -56,6 +59,9 @@ struct GeneratorNode
 	int nColumns;
 	int nChildren;
 
+	// cpu if cuda is not used/available, GPU otherwise.
+	torch::Device* device;
+
 	std::vector<ConnexionGenerator> toChildrenGenerators;
 	ConnexionGenerator toOutputGenerator;
 
@@ -63,17 +69,18 @@ struct GeneratorNode
 
 	GeneratorNode() {};
 
-	GeneratorNode(int* inS, int* outS, int* nC, int seedSize, float optimizerLR) :
+	GeneratorNode(int* inS, int* outS, int* nC, int seedSize, float optimizerLR, torch::Device* _device) :
 		nColumns(computeNCols(inS, outS, nC)),
-		toOutputGenerator(outS[0], computeNCols(inS, outS, nC), seedSize, optimizerLR),
-		inputSize(inS[0]), outputSize(outS[0]), nChildren(nC[0])
+		toOutputGenerator(outS[0], computeNCols(inS, outS, nC), seedSize, optimizerLR, _device),
+		inputSize(inS[0]), outputSize(outS[0]), nChildren(nC[0]),
+		device(_device)
 	{
 
 		toChildrenGenerators.reserve(nChildren);
 		children.reserve(nChildren);
 		for (int i = 0; i < nChildren; i++) {
-			toChildrenGenerators.emplace_back(inS[1], nColumns, seedSize, optimizerLR);
-			children.emplace_back(inS + 1, outS + 1, nC + 1, seedSize, optimizerLR);
+			toChildrenGenerators.emplace_back(inS[1], nColumns, seedSize, optimizerLR, device);
+			children.emplace_back(inS + 1, outS + 1, nC + 1, seedSize, optimizerLR, device);
 		}
 	}
 
@@ -81,6 +88,15 @@ struct GeneratorNode
 	int computeNCols(int* inS, int* outS, int* nC) {
 		int cIn = nC[0] > 0 ? outS[1] * nC[0] : 0;
 		return inS[0] + cIn;
+	}
+
+	void generatePerturbations(float perturbationMagnitude) {
+		toOutputGenerator.generatePerturbations(perturbationMagnitude);
+
+		for (int i = 0; i < nChildren; i++) {
+			toChildrenGenerators[i].generatePerturbations(perturbationMagnitude);
+			children[i].generatePerturbations(perturbationMagnitude);
+		}
 	}
 
 	void zeroGrad() {

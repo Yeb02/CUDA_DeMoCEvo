@@ -94,7 +94,7 @@ void normalizeArray(float* src, float* dst, int size) {
 	}
 }
 
-void rankArray(float* src, float* dst, int size) {
+void rankArray(float* src, float* dst, int size, int* highestID) {
 	std::vector<int> positions(size);
 	for (int i = 0; i < size; i++) {
 		positions[i] = i;
@@ -109,11 +109,12 @@ void rankArray(float* src, float* dst, int size) {
 	for (int i = 0; i < size; i++) {
 		// linear in [-1,1], -1 for the worst specimen, 1 for the best
 		float positionValue = (float)(2 * i - size) * invSize;
+
 		// arbitrary, to make it a bit more selective. 
 		positionValue = 1.953f * powf(positionValue * .8f, 3.0f);
 
 		dst[positions[i]] = positionValue;
 	}
+	*highestID = positions[size - 1];
 	return;
 }
-

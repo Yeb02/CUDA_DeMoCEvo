@@ -23,8 +23,9 @@
 // options still in the files : 
 // -trial uses same seed at reset (in system.cpp, thread loop),
 
-// Use CUDA if available. DO NOT NAME THE MACRO "CUDA" ! Conflict with libtorch.
-#define USE_CUDA
+// Use custom CUDA kernels instead of libtorch's (GPU or CPU) BLAS. 
+#define CUSTOM_KERNELS
+
 
 // Choose the trial the algorithm will (try to) solve. One and only one must be defined.
 #define CARTPOLE_T

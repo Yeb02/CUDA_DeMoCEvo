@@ -27,7 +27,7 @@
     <ClCompile Include="Source\Network.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Node.cpp">
+    <ClCompile Include="Source\Module.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="Source\InternalConnexion.cpp">
@@ -62,7 +62,7 @@
     <ClInclude Include="Source\TorchNNs.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Node.h">
+    <ClInclude Include="Source\Module.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="Source\InternalConnexion.h">

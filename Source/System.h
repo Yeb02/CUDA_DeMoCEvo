@@ -10,13 +10,23 @@
 
 struct SystemParameters {
 
-	float learningRate;
+	
 	int nBatches;
 	int nPerturbations;
 	int nEvaluationTrials;
 	int nSupervisedTrials;
 	int nTeachers;
 	int seedSize;
+	float potentialChange;
+
+
+	// learningRate is for the optimizer of the hyper networks, perturbationMagnitude for the
+	// norm of the perturbation added to the generated parameters before evaluation.
+	// There could be a third hyperparameter, for the magnitude of the perturbations in the "target"
+	// given to the hypernetworks for gradient calculations (would be redundant with learningRate were 
+	// the loss linear but it is quadratic). But enough hyperparameters already.
+
+	float learningRate;
 	float perturbationMagnitude;
 
 	int* inSizePerL;
@@ -34,7 +44,7 @@ class System
 
 public:
 
-	System(SystemParameters& params, Trial* trial);
+	System(SystemParameters& params, Trial* trial, bool libtorchUsesCuda);
 	~System() {};
 
 	void setParameters(SystemParameters& params)
@@ -46,7 +56,8 @@ public:
 		nTeachers = params.nTeachers;
 		nBatches = params.nBatches;
 		seedSize = params.seedSize;
-		perturbationMagnitude = params.perturbationMagnitude;
+		perturbationMagnitude = params.perturbationMagnitude; 
+		potentialChange = params.potentialChange;
 
 		inSizePerL = params.inSizePerL;
 		outSizePerL = params.outSizePerL;
@@ -67,6 +78,12 @@ private:
 
 
 	Trial* trial;
+	
+	// size (2*nPerturbations + 1). Only needed to replace the worst teacher with the best agent at this generation.
+	Network** agents;
+
+
+	int bestAgentID;
 
 	std::unique_ptr<GeneratorNode> rootGeneratorNode;
 
@@ -75,9 +92,15 @@ private:
 	// size nPerturbations
 	float* coefficients;
 
-	// size nEvaluationTrials * (2*nPerturbations + 1)
+	// size nEvaluationTrials (* (2*nPerturbations + 1)) (nEvaluationTrials +1 for temp calculations)
 	float** agentsScores;
+	// size 2*nPerturbations + 1
+	float* agentsFitnesses;
 
+	// size nSupervisedTrials (* nTeachers) (nSupervisedTrials +1 for temp calculations)
+	float** teachersScores;
+	// size nTeachers
+	float* teachersFitnesses;
 
 
 	int* inSizePerL;
@@ -93,4 +116,5 @@ private:
 	int nTeachers;
 	int seedSize;
 	float perturbationMagnitude;
+	float potentialChange;
 };

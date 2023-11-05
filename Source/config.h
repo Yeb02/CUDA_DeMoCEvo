@@ -20,11 +20,14 @@
 // to compile different versions of the code. Or use the -D flag.
 
 
-// options still in the files : 
-// -trial uses same seed at reset (in system.cpp, thread loop),
+// minor options still in the files : 
+// -trial uses same seed at reset (in system.cpp, thread loop).
+// -value of initial activations at agent creation (normal * .3)
+// -formula for ranking scores. (functions.cpp, rankArray())
+
 
 // Use custom CUDA kernels instead of libtorch's (GPU or CPU) BLAS. 
-#define CUSTOM_KERNELS
+//#define CUSTOM_KERNELS
 
 
 // Choose the trial the algorithm will (try to) solve. One and only one must be defined.
@@ -51,6 +54,13 @@
 #elif defined ROCKET_SIM_T
 #define COPY  RocketSimTrial
 #endif
+
+
+// when defined, there is only one internal connexion per module, it is no longer split into toOutput and the vector of toChildren.
+// It has a performance boost and makes code shorter and more maintainable, but has 2 downsides.
+// - Requires out,Cin be adjacent. But the child module requires its in,Cout be adjacent. So extra activation copy.
+// - No flexibility for the order of propagation of information through the network, it necessarily simultaneous.
+#define ONE_MATRIX
 
 
 #define SAME_SEED

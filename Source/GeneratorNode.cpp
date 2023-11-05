@@ -101,14 +101,14 @@ void ConnexionGenerator::createPhenotypeArrays(std::vector<torch::Tensor>& pheno
 	for (int i = 0; i < N_MATRICES; i++) {
 
 		if (perturbationID == -1) {
-			phenotypeMatrices[i] = generatedMatrices[i].clone();
+			phenotypeMatrices[i] = generatedMatrices[i].detach().clone();
 			continue;
 		}
 		if (negative) {
-			phenotypeMatrices[i] = generatedMatrices[i] - matrixPerturbations[i][perturbationID];
+			phenotypeMatrices[i] = generatedMatrices[i].detach().clone() - matrixPerturbations[i][perturbationID];
 		}
 		else {
-			phenotypeMatrices[i] = generatedMatrices[i] + matrixPerturbations[i][perturbationID];
+			phenotypeMatrices[i] = generatedMatrices[i].detach().clone() + matrixPerturbations[i][perturbationID];
 		}
 		
 	}
@@ -116,14 +116,14 @@ void ConnexionGenerator::createPhenotypeArrays(std::vector<torch::Tensor>& pheno
 	for (int i = 0; i < N_VECTORS; i++) 
 	{
 		if (perturbationID == -1) {
-			phenotypeVectors[i] = generatedVectors[i].clone();
+			phenotypeVectors[i] = generatedVectors[i].detach().clone();
 			continue;
 		}
 		if (negative) {
-			phenotypeVectors[i] = generatedVectors[i] - vectorPerturbations[i][perturbationID];
+			phenotypeVectors[i] = generatedVectors[i].detach().clone() - vectorPerturbations[i][perturbationID];
 		}
 		else {
-			phenotypeVectors[i] = generatedVectors[i] + vectorPerturbations[i][perturbationID];
+			phenotypeVectors[i] = generatedVectors[i].detach().clone() + vectorPerturbations[i][perturbationID];
 		}
 
 		if (i == 1) {
@@ -138,7 +138,7 @@ void ConnexionGenerator::createPhenotypeArrays(std::vector<torch::Tensor>& pheno
 void ConnexionGenerator::accumulateGradient(float* coefficients)
 {
 	for (int i = 0; i < N_MATRICES; i++) {
-		torch::Tensor target = generatedMatrices[i].clone();
+		torch::Tensor target = generatedMatrices[i].detach().clone();
 
 		for (int j = 0; j < nPerturbations; j++) {
 			target += matrixPerturbations[i][j] * coefficients[j];
@@ -150,7 +150,7 @@ void ConnexionGenerator::accumulateGradient(float* coefficients)
 	}
 
 	for (int i = 0; i < N_VECTORS; i++) {
-		torch::Tensor target = generatedVectors[i].clone();
+		torch::Tensor target = generatedVectors[i].detach().clone();
 
 		for (int j = 0; j < nPerturbations; j++) {
 			target += vectorPerturbations[i][j] * coefficients[j];

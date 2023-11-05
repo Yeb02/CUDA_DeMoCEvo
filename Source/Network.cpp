@@ -89,7 +89,7 @@ Network::Network(GeneratorNode* rootGenerator)
 	activationsTensor = torch::from_blob(activations, { activationArraySize,1 }, torch::TensorOptions().device(*device));
 	activationsTensor.normal_(.0f, .3f);
 	
-	// The following values will be modified by each node of the phenotype as the pointers are set.
+	// The following values will be modified by each module of the phenotype as the pointers are set.
 	float* ptr_activations = activations + outS[0];
 	float* ptr_accumulators = accumulators + outS[0];
 	float* outputActivations = activations;

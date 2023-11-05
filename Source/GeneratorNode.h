@@ -56,76 +56,130 @@ struct ConnexionGenerator
 struct GeneratorNode
 {
 	int inputSize, outputSize;
-	int nColumns;
+	int nColumns, nRows;
 	int nChildren;
 
 	// cpu if cuda is not used/available, GPU otherwise.
 	torch::Device* device;
 
-	std::vector<ConnexionGenerator> toChildrenGenerators;
-	ConnexionGenerator toOutputGenerator;
 
 	std::vector<GeneratorNode> children;
+
+#ifdef ONE_MATRIX
+	ConnexionGenerator parametersGenerator;
+#else
+	std::vector<ConnexionGenerator> toChildrenGenerators;
+	ConnexionGenerator toOutputGenerator;
+#endif
+
+
 
 	GeneratorNode() {};
 
 	GeneratorNode(int* inS, int* outS, int* nC, int seedSize, float optimizerLR, torch::Device* _device) :
-		nColumns(computeNCols(inS, outS, nC)),
+#ifdef ONE_MATRIX
+		parametersGenerator(computeNRows(inS, outS, nC), computeNCols(inS, outS, nC), seedSize, optimizerLR, _device),
+#else
+		toChildren(),
 		toOutputGenerator(outS[0], computeNCols(inS, outS, nC), seedSize, optimizerLR, _device),
+#endif
 		inputSize(inS[0]), outputSize(outS[0]), nChildren(nC[0]),
 		device(_device)
 	{
+		nColumns = computeNCols(inS, outS, nC);
+		nRows = computeNRows(inS, outS, nC);
 
-		toChildrenGenerators.reserve(nChildren);
 		children.reserve(nChildren);
 		for (int i = 0; i < nChildren; i++) {
-			toChildrenGenerators.emplace_back(inS[1], nColumns, seedSize, optimizerLR, device);
 			children.emplace_back(inS + 1, outS + 1, nC + 1, seedSize, optimizerLR, device);
 		}
+
+#ifndef ONE_MATRIX
+		toChildrenGenerators.reserve(nChildren);
+		for (int i = 0; i < nChildren; i++) {
+			toChildrenGenerators.emplace_back(inS[1], nColumns, seedSize, optimizerLR, device);
+		}
+#endif
 	}
 
 
 	int computeNCols(int* inS, int* outS, int* nC) {
-		int cIn = nC[0] > 0 ? outS[1] * nC[0] : 0;
-		return inS[0] + cIn;
+		int cOut = nC[0] > 0 ? outS[1] * nC[0] : 0;
+		return inS[0] + cOut;
+	}
+
+	int computeNRows(int* inS, int* outS, int* nC) {
+		int cIn = nC[0] > 0 ? inS[1] * nC[0] : 0;
+		return outS[0] + cIn;
 	}
 
 	void generatePerturbations(float perturbationMagnitude) {
-		toOutputGenerator.generatePerturbations(perturbationMagnitude);
-
+		
 		for (int i = 0; i < nChildren; i++) {
-			toChildrenGenerators[i].generatePerturbations(perturbationMagnitude);
 			children[i].generatePerturbations(perturbationMagnitude);
 		}
+
+#ifdef ONE_MATRIX
+		parametersGenerator.generatePerturbations(perturbationMagnitude);
+#else
+		toOutputGenerator.generatePerturbations(perturbationMagnitude);
+		for (int i = 0; i < nChildren; i++) {
+			toChildrenGenerators[i].generatePerturbations(perturbationMagnitude);
+		}
+#endif
+
 	}
 
 	void zeroGrad() {
 
-		toOutputGenerator.optimizerZero();
-
 		for (int i = 0; i < nChildren; i++) {
-			toChildrenGenerators[i].optimizerZero();
 			children[i].zeroGrad();
 		}
+
+
+#ifdef ONE_MATRIX
+		parametersGenerator.optimizerZero();
+#else
+		toOutputGenerator.optimizerZero();
+		for (int i = 0; i < nChildren; i++) {
+			toChildrenGenerators[i].optimizerZero();
+		}
+#endif
 	}
 
 	void optimizerStep() {
 
-		toOutputGenerator.optimizerStep();
 
 		for (int i = 0; i < nChildren; i++) {
-			toChildrenGenerators[i].optimizerStep();
 			children[i].optimizerStep();
 		}
+
+
+#ifdef ONE_MATRIX
+		parametersGenerator.optimizerStep();
+#else
+		toOutputGenerator.optimizerStep();
+		for (int i = 0; i < nChildren; i++) {
+			toChildrenGenerators[i].optimizerStep();
+		}
+#endif
 	}
 
-	void accumulateGrad(float* coefficients) {
-
-		toOutputGenerator.accumulateGradient(coefficients);
+	void accumulateGradient(float* coefficients) {
 
 		for (int i = 0; i < nChildren; i++) {
-			toChildrenGenerators[i].accumulateGradient(coefficients);
-			children[i].accumulateGrad(coefficients);
+			children[i].accumulateGradient(coefficients);
 		}
+
+
+#ifdef ONE_MATRIX
+		parametersGenerator.accumulateGradient(coefficients);
+#else
+		toOutputGenerator.accumulateGradient(coefficients);
+		for (int i = 0; i < nChildren; i++) {
+			toChildrenGenerators[i].accumulateGradient(coefficients);
+		}
+#endif
+
 	}
 };

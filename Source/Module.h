@@ -19,9 +19,12 @@ struct Module {
 
 	std::vector<Module> children;
 
+#ifdef ONE_MATRIX
+	InternalConnexion parameters;
+#else
 	std::vector<InternalConnexion> toChildren;
 	InternalConnexion toOutput;
-
+#endif
 
 	// Concatenation of this node's input and children's output.
 	torch::Tensor inCoutActivations;
@@ -35,6 +38,12 @@ struct Module {
 	torch::Tensor outputActivations;
 	torch::Tensor outputAccumulators;
 
+#ifdef ONE_MATRIX
+	torch::Tensor outCinActivations;
+	torch::Tensor outCinAccumulators;
+#endif
+
+
 	// Allocate memory for connexions, and arrays managed by this.
 	Module(GeneratorNode& generator);
 
@@ -43,8 +52,12 @@ struct Module {
 
 	// Should never be called.
 	Module() :
+#ifdef ONE_MATRIX
+		parameters(0, 0, nullptr)
+#else
 		toChildren(),
 		toOutput(0, 0, nullptr)
+#endif
 	{
 		__debugbreak();
 	};
@@ -64,6 +77,7 @@ struct Module {
 	void thetaUpdate_simultaneous();
 
 	// Works the same when running on GPU or CPU. The arguments are different, but that is the network's job.
+	// float* outActivations, float* outAccumulators are nullptr when on GPU.
 	void setArrayPointers(float** ptr_activations, float** ptr_accumulators, float* outActivations, float* outAccumulators);
 
 };

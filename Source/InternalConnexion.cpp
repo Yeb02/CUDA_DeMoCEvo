@@ -26,13 +26,13 @@ void InternalConnexion::deepCopy(const InternalConnexion& gc) {
 	matrices.resize(N_MATRICES);
 	for (int i = 0; i < N_MATRICES; i++)
 	{
-		matrices[i] = gc.matrices[i].clone();
+		matrices[i] = gc.matrices[i].clone(); TODO;
 	}
 
 	vectors.resize(N_VECTORS);
 	for (int i = 0; i < N_VECTORS; i++)
 	{
-		vectors[i] = gc.vectors[i].clone();
+		vectors[i] = gc.vectors[i].clone(); TODO;
 	}
 }
 

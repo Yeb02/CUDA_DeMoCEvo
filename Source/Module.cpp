@@ -6,22 +6,43 @@
 
 Module::Module(GeneratorNode& _generator) :
 	inputSize(_generator.inputSize), outputSize(_generator.outputSize), nChildren(_generator.nChildren),
+#ifdef ONE_MATRIX
+	parameters(_generator.nRows, _generator.nColumns, _generator.device),
+#else
 	toChildren(),
 	toOutput(_generator.outputSize, _generator.nColumns, _generator.device),
+#endif
 	device(_generator.device)
 {
 
 	children.reserve(nChildren);
+	for (int j = 0; j < nChildren; j++) {
+		children.emplace_back(_generator.children[j]);
+	}
+
+#ifndef ONE_MATRIX
 	toChildren.reserve(nChildren);
 	for (int j = 0; j < nChildren; j++) {
 		children.emplace_back(_generator.children[j]);
 		toChildren.emplace_back(_generator.children[j].inputSize, _generator.nColumns, device);
-	}
+	}	
+#endif
 }
 
 
 void Module::generatePhenotype(GeneratorNode& _generator, int perturbationID, bool negative)
 {
+
+
+#ifdef ONE_MATRIX
+	_generator.parametersGenerator.createPhenotypeArrays(
+		parameters.matrices,
+		parameters.vectors,
+		perturbationID,
+		negative
+	);
+
+#else
 	_generator.toOutputGenerator.createPhenotypeArrays(
 		toOutput.matrices,
 		toOutput.vectors,
@@ -30,8 +51,6 @@ void Module::generatePhenotype(GeneratorNode& _generator, int perturbationID, bo
 	);
 
 	for (int j = 0; j < nChildren; j++) {
-		children[j].generatePhenotype(_generator.children[j], perturbationID, negative);
-
 		_generator.toChildrenGenerators[j].createPhenotypeArrays(
 			toChildren[j].matrices,
 			toChildren[j].vectors,
@@ -39,32 +58,55 @@ void Module::generatePhenotype(GeneratorNode& _generator, int perturbationID, bo
 			negative
 		);
 	}
+#endif
+
+	for (int j = 0; j < nChildren; j++) {
+		children[j].generatePhenotype(_generator.children[j], perturbationID, negative);
+	}
 }
 
 
 Module::Module(const Module& n) :
 	inputSize(n.inputSize), outputSize(n.outputSize), nChildren(n.nChildren),
+#ifdef ONE_MATRIX
+	parameters(n.parameters),
+#else
 	toChildren(),
 	toOutput(n.toOutput),
+#endif
 	device(n.device)
 {
 	children.reserve(nChildren);
-	toChildren.reserve(nChildren);
 
 	for (int j = 0; j < nChildren; j++) {
 		children.emplace_back(n.children[j]);
+	}
+
+#ifndef ONE_MATRIX
+	toChildren.reserve(nChildren);
+
+	for (int j = 0; j < nChildren; j++) {
 		toChildren.emplace_back(n.toChildren[j]);
 	}
+#endif
 }
 
 
 void Module::deepCopy(const Module& n)
 {
-	toOutput.deepCopy(n.toOutput);
 
+#ifdef ONE_MATRIX
+	parameters.deepCopy(n.parameters);
+#else
+	toOutput.deepCopy(n.toOutput);
 	for (int j = 0; j < nChildren; j++) {
 		children[j].deepCopy(n.children[j]);
 		toChildren[j].deepCopy(n.toChildren[j]);
+	}
+#endif
+
+	for (int j = 0; j < nChildren; j++) {
+		children[j].deepCopy(n.children[j]);
 	}
 }
 
@@ -72,16 +114,43 @@ void Module::deepCopy(const Module& n)
 void Module::setArrayPointers(float** ptr_activations, float** ptr_accumulators, float* outActivations, float* outAccumulators)
 {
 
+#ifdef ONE_MATRIX
 
-	// (toOutput and toChildren's matrices have the same number of columns, we could have used either)
+	outCinActivations = torch::from_blob(*ptr_activations , { parameters.nRows,1 }, torch::TensorOptions().device(*device));
+	outCinAccumulators = torch::from_blob(*ptr_accumulators, { parameters.nRows,1 }, torch::TensorOptions().device(*device));
+
+	outputActivations = torch::from_blob(*ptr_activations, { outputSize,1 }, torch::TensorOptions().device(*device));
+	outputAccumulators = torch::from_blob(*ptr_accumulators, { outputSize,1 }, torch::TensorOptions().device(*device));
+
+	*ptr_activations += parameters.nRows;
+	*ptr_accumulators += parameters.nRows;
+
+	inCoutActivations = torch::from_blob(*ptr_activations, { parameters.nColumns,1 }, torch::TensorOptions().device(*device));
+	inCoutAccumulators = torch::from_blob(*ptr_accumulators, { parameters.nColumns,1 }, torch::TensorOptions().device(*device));
+
+	inputActivations = torch::from_blob(*ptr_activations, { inputSize,1 }, torch::TensorOptions().device(*device));
+	inputAccumulators = torch::from_blob(*ptr_accumulators, { inputSize,1 }, torch::TensorOptions().device(*device));
+
+
+	*ptr_activations += parameters.nColumns;
+	*ptr_accumulators += parameters.nColumns;
+
+	for (int i = 0; i < children.size(); i++) {
+		children[i].setArrayPointers(ptr_activations, ptr_accumulators, nullptr, nullptr);
+	}
+
+#else
+
+
+	
 	inCoutActivations = torch::from_blob(*ptr_activations, { toOutput.nColumns,1 }, torch::TensorOptions().device(*device));
 	inCoutAccumulators = torch::from_blob(*ptr_accumulators, { toOutput.nColumns,1 }, torch::TensorOptions().device(*device));
 
 	inputActivations = torch::from_blob(*ptr_activations, { inputSize,1 }, torch::TensorOptions().device(*device));
 	inputAccumulators = torch::from_blob(*ptr_accumulators, { inputSize,1 }, torch::TensorOptions().device(*device));
 
-	inputActivations = torch::from_blob(outActivations, { outputSize,1 }, torch::TensorOptions().device(*device));
-	inputAccumulators = torch::from_blob(outAccumulators, { outputSize,1 }, torch::TensorOptions().device(*device));
+	outputActivations = torch::from_blob(outActivations, { outputSize,1 }, torch::TensorOptions().device(*device));
+	outputAccumulators = torch::from_blob(outAccumulators, { outputSize,1 }, torch::TensorOptions().device(*device));
 
 
 
@@ -97,6 +166,7 @@ void Module::setArrayPointers(float** ptr_activations, float** ptr_accumulators,
 		actCoutPtr += children[i].outputSize;// same for all i.
 		accCoutPtr += children[i].outputSize;
 	}
+#endif
 }
 
 
@@ -116,8 +186,52 @@ void Module::xUpdate_simultaneous()
 	// "This" handles the update of its children's inputs and outputs. If this is the root node, the output and input of this are managed by the PC_Network.
 
 
+#ifdef ONE_MATRIX
+	// f(X_inCout) is recomputed each time it is needed because on GPU its is more costly than memory operations.
 
-	// grad_out = - epsilon_out = (bias + theta*f(X_inCout) - X_out)     (* invSigmas_out #ifdef ACTIVATION_VARIANCE)
+	// grad_outCin = - epsilon_outCin = (bias + theta*f(X_inCout) - X_outCin)     (* invSigmas_outCin #ifdef ACTIVATION_VARIANCE)
+	outCinAccumulators = (  (parameters.vectors[0] + parameters.matrices[0].matmul(torch::tanh(inCoutActivations)) ) - outCinActivations
+#ifdef ACTIVATION_VARIANCE
+		) * parameters.vectors[1];
+#else
+		);
+#endif
+
+
+	// grad_inCout = eta_inCout = (thetaTransposed * epsilon_outCin) * f'(X_inCout)
+	inCoutAccumulators = (parameters.matrices[0].transpose(0,1).matmul(outCinAccumulators))
+		* (torch::square(torch::tanh(inCoutActivations)) - 1.0f); // outCinAccumulators holds -epsilon so f' is opposed.
+
+
+	int start1 = inputSize;
+	int start2 = outputSize;
+	for (int i = 0; i < nChildren; i++)
+	{
+
+		// Transmit activations
+		children[i].inputActivations = inCoutActivations.slice(0, start1, start1 + children[i].inputSize);
+		children[i].outputActivations = outCinActivations.slice(0, start2, start2 + children[i].outputSize);
+
+		// recursive call to the children's function.
+		children[i].xUpdate_simultaneous();
+
+		// Retrieve epsilon and eta
+		inCoutAccumulators.slice(0, start1, start1 + children[i].inputSize) += children[i].inputAccumulators;
+		outCinAccumulators.slice(0, start2, start2 + children[i].outputSize) += children[i].outputAccumulators;
+
+		start1 += children[i].outputSize;
+		start2 += children[i].inputSize;
+	}
+
+	// The actual activation's update
+	inCoutActivations.slice(0, inputSize, start1) += xlr * inCoutAccumulators.slice(0, inputSize, start1);
+	outCinAccumulators.slice(0, outputSize, start2) += xlr * outCinAccumulators.slice(0, outputSize, start2);
+
+#else
+	// When this function is called, inCoutAccumulators holds -epsilon_in in its first slots and outputAccumulators holds -eta_out.
+
+
+	// grad_out += - epsilon_out = (bias + theta*f(X_inCout) - X_out)     (* invSigmas_out #ifdef ACTIVATION_VARIANCE)
 	outputAccumulators += (((toOutput.vectors[0] + toOutput.matrices[0] * inCoutActivations.array().tanh().matrix()) - outputActivations
 #ifdef ACTIVATION_VARIANCE
 		).array() * toOutput.vectors[1].array()).matrix();
@@ -152,6 +266,9 @@ void Module::xUpdate_simultaneous()
 
 	}
 
+
+#endif
+
 	return;
 }
 
@@ -164,6 +281,13 @@ void Module::thetaUpdate_simultaneous()
 	const float theta_b_lr = .0001f;
 #ifdef ACTIVATION_VARIANCE
 	const float sigma_lr = .0001f;
+#endif
+
+
+#ifdef ONE_MATRIX
+
+#else
+
 #endif
 
 	// f(X_inCout) is precomputed, stored in the grad accumulator for convenience

@@ -11,6 +11,7 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 #endif
 
 #include "System.h"
+#include "Trial.h"
 
 #ifdef ROCKET_SIM_T
 #include "RocketSim.h"

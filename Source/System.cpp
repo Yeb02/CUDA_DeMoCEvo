@@ -38,6 +38,11 @@ System::System(SystemParameters& params, Trial* _trial, bool libtorchUsesCuda):
 
 
 
+#ifdef ONE_MATRIX
+	int activationArraySize = 0;
+#else
+	int activationArraySize = outSizePerL[0];
+#endif
 	int activationArraySize = outSizePerL[0];
 	std::vector<int> nModulesPerNetworkLayer(treeDepth);
 	nModulesPerNetworkLayer[0] = 1;
@@ -48,7 +53,13 @@ System::System(SystemParameters& params, Trial* _trial, bool libtorchUsesCuda):
 
 		int cOs = nc == 0 ? 0 : outSizePerL[l + 1];
 
+
+#ifdef ONE_MATRIX
+		int cIs = nc == 0 ? 0 : inSizePerL[l + 1];
+		activationArraySize += nModulesPerNetworkLayer[l] * (inSizePerL[l] + outSizePerL[l] + (cOs + cIs) * nc);
+#else
 		activationArraySize += nModulesPerNetworkLayer[l] * (inSizePerL[l] + cOs * nc);
+#endif
 	}
 
 
@@ -75,7 +86,7 @@ void System::teachAndEvaluate()
 		agents[i]->generatePhenotype(rootGeneratorNode.get(), pID, negative);
 
 		for (int j = 0; j < nSupervisedTrials; j++) {
-			Network teacher(*teachers[j % (int)teachers.size()]); TODO;
+			Network teacher(*teachers[j % (int)teachers.size()]); TODO when does the teacher learn;
 
 			float* teacherOutput = teacher.getOutput();
 
@@ -170,8 +181,7 @@ void System::updateTeachers()
 	);
 
 
-	int tID = positions[0];
-	teachers[tID]->deepCopy(*agents[bestAgentID]);
+	teachers[positions[0]]->deepCopy(*agents[bestAgentID]);
 }
 
 
@@ -196,7 +206,7 @@ void System::evolve(int nSteps)
 
 			if (i == 0) log(s);
 
-			rootGeneratorNode->accumulateGrad(coefficients);
+			rootGeneratorNode->accumulateGradient(coefficients);
 		}
 
 		rootGeneratorNode->optimizerStep();

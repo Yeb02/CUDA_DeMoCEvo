@@ -1,9 +1,8 @@
 #pragma once
 
 
-#include "Trial.h"
+#include "VirtualTrial.h"
 #include "Network.h"
-#include "DeMoCEvoCore.h"
 
 
 

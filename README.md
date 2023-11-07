@@ -18,16 +18,16 @@ DeMoCEvo builds on this view, maintaining and updating a continuous probability 
 The main advantage of DeMoCEvo over a traditional GA is the ability to share meta-learning (within the population/distribution) semantically through the hyper-networks weight updates, instead of through handcrafted, non-semantic, crossover operations. 
 <br>
 <br>
-**Potential flaw:** The "diversity" in a discrete population setting is the same notion as the entropy of the hyper-network's output distribution here. It is essential to maintain diversity in the traditional GA, so as to broaden the search space. It is as important for DeMoCEvo, as its aforementionned strength relies on the diversity of the generated networks. Therefore a collapse of the hyper-networks on only one genotype would greatly reduce the algorithm's effectiveness. It has not happened at all as of now, but only small problem sizes have been tested. Methods to prevent it are still to be designed.
+**Potential flaw:** The "diversity" in a discrete population setting is the same notion as the entropy of the hyper-network's output distribution here. It is essential to maintain diversity in the traditional GA, to broaden the search space. It is as important for DeMoCEvo, as its aforementionned strength relies on the diversity of the generated networks. Therefore a collapse of the hyper-networks on only one genotype would greatly reduce the algorithm's effectiveness. It has not happened at all as of now, but only small problem sizes have been tested. Methods to prevent it are still to be designed.
 <br>
 <br>
 #### Teachers
-<sup><sub>Similar to [MoEv](https://github.com/Yeb02/CUDA_MoEv), a discrete population of agents called teachers is maintained.</sup></sub> <br>
-*Information* extracted from the environment over the course of evolution is embodied implicitly in 2 containers, 2 "memory"s whose characteristics are complementary.
+Similar to [MoEv](https://github.com/Yeb02/CUDA_MoEv), a discrete population of agents called teachers is maintained. <br>
+*Information* extracted from the environment over the course of evolution is stored implicitly in 2 containers, 2 "memory"s that have complementary features.
 <br>
 - The first one, classicaly, is the population's genomes, or in this case the hyper-networks parameters. It resides outside of the environment, and can be seen as atavic knowledge, or meta-knowledge. <br>
 
-- The second one is accumulated by each agent in its weights, and comes from its experiences during its lifetime. In a classical genetic algorithm, it would be discarded at the end of the agent's evaluation, as only the fitness (1 real number !) is used. Evolution obviously learns slowly in this setting, the information bottleneck being 1 number wide.
+- The second one is accumulated by each agent in its weights, and comes from its experiences during its lifetime. In a classical genetic algorithm, it would be discarded at the end of the agent's evaluation, as only the fitness (1 real number !) is used. Evolution obviously learns slowly in this setting, the information bottleneck between the environment and the algorithm being 1 number wide.
 <br>
 DeMoCEvo attempts to transmit lifetime knowledge in order to increase the information flow throughout evolution. At each step, a discrete population of agents from anterior steps, called teachers, are used to transfer the in-environment knowledge they have gathered. To this end, the new agents are supervised by teachers during the first part of their lifetime; they learn by imitation. <br> Besides throughput, in-environment information has many advantages over genomic information, the most proeminent being speed: it would be much faster to update, were it incorrect or had the environment changed.
 
@@ -73,7 +73,7 @@ The agent has a pointer to the root module, and an inference / learning step is 
 
 CUDA and Cublas functions will be merged to the main branch when a satisfactory modulation rule for predictive coding is found. The time it takes to develop and iterate on kernels is not worth the performance gain on my hardware (GTX 1050M). In the mean time, acceleration relies on libtorch's CPU and GPU BLAS. <br>
 
-There are 2 major hindrances to predictive coding's efficiency: 
+There are 2 major hindrances to predictive coding's hardware efficiency: 
 - low GPU occupancy as its operations are matrix-vector products, memory bound.
 - each "time step" in the simulation requires a number of inference steps, and the deeper the network the worst it gets. 5 layers require at least 16 steps.
 

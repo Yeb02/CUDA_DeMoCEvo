@@ -43,7 +43,6 @@ System::System(SystemParameters& params, Trial* _trial, bool libtorchUsesCuda):
 #else
 	int activationArraySize = outSizePerL[0];
 #endif
-	int activationArraySize = outSizePerL[0];
 	std::vector<int> nModulesPerNetworkLayer(treeDepth);
 	nModulesPerNetworkLayer[0] = 1;
 	for (int l = 0; l < treeDepth; l++)
@@ -73,6 +72,13 @@ System::System(SystemParameters& params, Trial* _trial, bool libtorchUsesCuda):
 	for (int i = 0; i < (2 * nPerturbations + 1); i++) {
 		agents[i] = new Network(rootGeneratorNode.get());
 	}
+	teachers.resize(nTeachers);
+	for (int i = 0; i < nTeachers; i++) {
+		teachers[i] = new Network(rootGeneratorNode.get());
+	}
+	activeTeacher = new Network(rootGeneratorNode.get());
+
+	currentNTeachers = 0;
 }
 
 
@@ -86,18 +92,18 @@ void System::teachAndEvaluate()
 		agents[i]->generatePhenotype(rootGeneratorNode.get(), pID, negative);
 
 		for (int j = 0; j < nSupervisedTrials; j++) {
-			Network teacher(*teachers[j % (int)teachers.size()]); TODO when does the teacher learn;
+			activeTeacher->deepCopy(*teachers[j % (int)teachers.size()]); // TODO when does the teacher learn ?
 
-			float* teacherOutput = teacher.getOutput();
+			float* teacherOutput = activeTeacher->getOutput();
 
-			teacher.preTrialReset();
+			activeTeacher->preTrialReset();
 			agents[i]->preTrialReset();
 			
 			trial->reset(false);
 
 			while (!trial->isTrialOver)
 			{
-				teacher.step(trial->observations.data(), false);
+				activeTeacher->step(trial->observations.data(), false);
 				agents[i]->step(trial->observations.data(), true, teacherOutput);
 				trial->step(teacherOutput);
 			}
@@ -149,26 +155,26 @@ void System::computeCoefficients()
 
 void System::updateTeachers() 
 {
-	int size = teachers.size();
 
-	if (size < nTeachers) {
-		teachers.emplace_back(*agents[bestAgentID]);
+	if (currentNTeachers < nTeachers) {
+		teachers[currentNTeachers]->deepCopy(*agents[bestAgentID]);
+		currentNTeachers++;
 		return;
 	}
 
 
-	std::fill(teachersFitnesses, teachersFitnesses + size, 0.0f);
+	std::fill(teachersFitnesses, teachersFitnesses + nTeachers, 0.0f);
 
 	for (int i = 0; i < nSupervisedTrials; i++) {
-		rankArray(teachersScores[i], teachersScores[nSupervisedTrials], size);
-		for (int j = 0; j < size; j++) {
+		rankArray(teachersScores[i], teachersScores[nSupervisedTrials], nTeachers);
+		for (int j = 0; j < nTeachers; j++) {
 			teachersFitnesses[j] += teachersScores[nSupervisedTrials][j];
 		}
 	}
 
 
-	std::vector<int> positions(size);
-	for (int i = 0; i < size; i++) {
+	std::vector<int> positions(nTeachers);
+	for (int i = 0; i < nTeachers; i++) {
 		positions[i] = i;
 	}
 

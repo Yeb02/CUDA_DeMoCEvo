@@ -286,9 +286,46 @@ void Module::thetaUpdate_simultaneous()
 
 #ifdef ONE_MATRIX
 
-#else
 
+
+
+	// epsilon_outCin = X_outCin - (bias + theta*f(X_inCout))     (* invSigmas_outCin #ifdef ACTIVATION_VARIANCE)
+	outCinAccumulators = (outCinActivations - (parameters.vectors[0] + parameters.matrices[0].matmul(torch::tanh(inCoutActivations)))
+#ifdef ACTIVATION_VARIANCE
+		) * parameters.vectors[1];
+#else
+		);
 #endif
+
+#ifdef ACTIVATION_VARIANCE
+	// Reminder that vectors[1] contains the inverses of the variances.
+	// sigma += (invSigmas * (  X_outCin - (theta*f(X_inCout)+bias)  )^2  - 1) * sigma_lr = (sigmas * epsilon_outCin^2  - 1) * sigma_lr
+	parameters.vectors[1] = torch::pow(parameters.vectors[1], -1);
+	parameters.vectors[1] = torch::pow(parameters.vectors[1] + (parameters.vectors[1] * torch::square(outCinAccumulators) - 1.0f) * sigma_lr, -1);
+#endif
+
+	// modulate epsilons
+#ifdef MODULATED
+	outCinAccumulators = outCinAccumulators * (torch::tanh(parameters.matrices[1].matmul(inCoutActivations)) + 1.0f) * .005f; // .005f is a lr
+#else
+	outCinAccumulators *= theta_b_lr;
+#endif
+
+	// theta -= theta_grad * theta_b_lr (theta_grad = f(x_inCout) * epsilon_out.transpose)
+	parameters.matrices[0] -= torch::tanh(inCoutActivations).matmul(torch::transpose(outCinAccumulators, 0, 1));
+
+
+	// bias -= bias_grad * theta_b_lr (bias_grad = epsilon_outCin)
+	parameters.vectors[0] -= outCinAccumulators;
+
+
+	for (int i = 0; i < nChildren; i++)
+	{
+		children[i].thetaUpdate_simultaneous();
+	}
+
+
+#else
 
 	// f(X_inCout) is precomputed, stored in the grad accumulator for convenience
 	inCoutAccumulators.noalias() = inCoutActivations.array().tanh().matrix();
@@ -369,6 +406,8 @@ void Module::thetaUpdate_simultaneous()
 		// child's update
 		children[i].thetaUpdate_simultaneous();
 	}
+
+#endif
 
 
 	return;

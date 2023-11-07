@@ -26,29 +26,29 @@ void InternalConnexion::deepCopy(const InternalConnexion& gc) {
 	matrices.resize(N_MATRICES);
 	for (int i = 0; i < N_MATRICES; i++)
 	{
-		matrices[i] = gc.matrices[i].clone(); TODO;
+		matrices[i] = gc.matrices[i].clone();  // TODO check that it happens in the preallocated memory.
 	}
 
 	vectors.resize(N_VECTORS);
 	for (int i = 0; i < N_VECTORS; i++)
 	{
-		vectors[i] = gc.vectors[i].clone(); TODO;
+		vectors[i] = gc.vectors[i].clone(); // TODO check that it happens in the preallocated memory.
 	}
 }
 
 
 void InternalConnexion::createTensors()
 {
-	matrices.reserve(N_MATRICES);
+	matrices.resize(N_MATRICES);
 	for (int i = 0; i < N_MATRICES; i++)
 	{
-		matrices.emplace_back(torch::IntArrayRef{ nRows, nColumns }, torch::TensorOptions().dtype(torch::kFloat32).device(*device));
+		matrices[i] = torch::zeros(torch::IntArrayRef{ nRows, nColumns }, torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 	}
 
-	vectors.reserve(N_VECTORS);
+	vectors.resize(N_VECTORS);
 	for (int i = 0; i < N_VECTORS; i++)
 	{
-		vectors.emplace_back(torch::IntArrayRef{ nRows, 1 }, torch::TensorOptions().dtype(torch::kFloat32).device(*device));
+		vectors[i] = torch::zeros(torch::IntArrayRef{ nRows, 1 }, torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 	}
 }
 

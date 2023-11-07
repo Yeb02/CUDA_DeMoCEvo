@@ -24,7 +24,7 @@ ConnexionGenerator::ConnexionGenerator(int _nRows, int _nCols, int seedSize, flo
 		matrixPerturbations[i] = new torch::Tensor[nPerturbations];
 		for (int j = 0; j < nPerturbations; j++)
 		{
-			matrixPerturbations[i][j] = torch::Tensor(torch::IntArrayRef{ nRows, nCols },
+			matrixPerturbations[i][j] = torch::zeros(torch::IntArrayRef{ nRows, nCols },
 				torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 		}
 	}
@@ -38,7 +38,7 @@ ConnexionGenerator::ConnexionGenerator(int _nRows, int _nCols, int seedSize, flo
 		vectorPerturbations[i] = new torch::Tensor[nPerturbations];
 		for (int j = 0; j < nPerturbations; j++)
 		{
-			vectorPerturbations[i][j] = torch::Tensor(torch::IntArrayRef{ nRows, 1 },
+			vectorPerturbations[i][j] = torch::zeros(torch::IntArrayRef{ nRows, 1 },
 				torch::TensorOptions().dtype(torch::kFloat32).device(*device));
 		}
 	}
@@ -49,7 +49,7 @@ ConnexionGenerator::ConnexionGenerator(int _nRows, int _nCols, int seedSize, flo
 	optimizer->param_groups()[0].set_options(std::make_unique<torch::optim::OptimizerOptions>(options));
 	*/ // TODO  (legacy comment ?)
 
-	optimizer = std::make_unique<torch::optim::SGD>(optimizedParameters, optimizerLR);
+	optimizer = new torch::optim::SGD(optimizedParameters, optimizerLR);
 }
 
 

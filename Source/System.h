@@ -81,12 +81,15 @@ private:
 	// size (2*nPerturbations + 1). Only needed to replace the worst teacher with the best agent at this generation.
 	Network** agents;
 
-
+	int currentNTeachers;
 	int bestAgentID;
 
 	std::unique_ptr<GeneratorNode> rootGeneratorNode;
 
 	std::vector<Network*> teachers;
+
+	// a copy of a teacher in the teachers array, because as of now i am unsure if/when to update the teachers weights during its "lessons"
+	Network* activeTeacher;
 
 	// size nPerturbations
 	float* coefficients;

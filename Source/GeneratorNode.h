@@ -13,7 +13,7 @@ struct ConnexionGenerator
 	// matrices are nRows by nCols, vectors are column vectors with nRows;
 	int nRows, nCols;
 
-	std::unique_ptr<torch::optim::SGD> optimizer; // SGD ? Adadelta ? TODO
+	torch::optim::SGD* optimizer; // SGD ? Adadelta ? TODO
 
 	// cpu if cuda is not used/available, GPU otherwise.
 	torch::Device* device;
@@ -74,7 +74,13 @@ struct GeneratorNode
 
 
 
-	GeneratorNode() {};
+	GeneratorNode() :
+		children() 
+#ifdef ONE_MATRIX
+#else
+		,toChildren()
+#endif
+	{};
 
 	GeneratorNode(int* inS, int* outS, int* nC, int seedSize, float optimizerLR, torch::Device* _device) :
 #ifdef ONE_MATRIX
@@ -83,7 +89,7 @@ struct GeneratorNode
 		toChildren(),
 		toOutputGenerator(outS[0], computeNCols(inS, outS, nC), seedSize, optimizerLR, _device),
 #endif
-		inputSize(inS[0]), outputSize(outS[0]), nChildren(nC[0]),
+		inputSize(inS[0]), outputSize(outS[0]), nChildren(nC[0]), children(),
 		device(_device)
 	{
 		nColumns = computeNCols(inS, outS, nC);

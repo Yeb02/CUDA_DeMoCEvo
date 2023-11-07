@@ -26,8 +26,6 @@ struct Network {
 	// Fills pre-allocated memory with data derived from the generated genotype.
 	void generatePhenotype(GeneratorNode* rootGenerator, int perturbationID, bool negative);
 
-	Network(const Network& pcn);
-
 	void deepCopy(const Network& pcn); 
 
 	~Network() 

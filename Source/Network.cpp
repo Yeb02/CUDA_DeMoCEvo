@@ -13,49 +13,13 @@ int* Network::nC = nullptr;
 int Network::nLayers = 0;
 
 
-Network::Network(const Network& pcn)
-{
-	rootModule.reset(new Module(*(pcn.rootModule.get())));
-
-
-	if (*device == torch::kCPU) {
-		activations = new float[activationArraySize];
-		accumulators = new float[activationArraySize];
-	}
-	else {
-		activations = cudaMalloc(*device, activationArraySize);
-		accumulators = cudaMalloc(*device, activationArraySize);
-	}
-
-	accumulatorsTensor = torch::from_blob(accumulators, { activationArraySize,1 }, torch::TensorOptions().device(*device));
-	activationsTensor = torch::from_blob(activations, { activationArraySize,1 }, torch::TensorOptions().device(*device));
-	
-	activationsTensor = pcn.activationsTensor.clone(); TODO;
-	accumulatorsTensor = pcn.accumulatorsTensor.clone(); TODO;
-
-
-	// The following values will be modified by each node of the phenotype as the pointers are set.
-	float* ptr_activations = activations + outS[0];
-	float* ptr_accumulators = accumulators + outS[0];
-	float* outputActivations = activations;
-	float* outputAccumulators = accumulators;
-
-	rootModule->setArrayPointers(
-		&ptr_activations,
-		&ptr_accumulators,
-		outputActivations,
-		outputAccumulators
-	);
-
-}
-
 
 void Network::deepCopy(const Network& pcn)
 {
 	rootModule->deepCopy(*(pcn.rootModule.get()));
 
-	activationsTensor = pcn.activationsTensor.clone(); TODO;
-	accumulatorsTensor = pcn.accumulatorsTensor.clone(); TODO;
+	activationsTensor = pcn.activationsTensor.clone(); // TODO check that it happens in the preallocated memory.
+	accumulatorsTensor = pcn.accumulatorsTensor.clone(); // TODO check that it happens in the preallocated memory.
 }
 
 
@@ -80,8 +44,8 @@ Network::Network(GeneratorNode* rootGenerator)
 		accumulators = new float[activationArraySize];
 	}
 	else {
-		activations = cudaMalloc(*device,  activationArraySize);
-		accumulators = cudaMalloc(*device,  activationArraySize);
+		cudaMalloc(&activations,  activationArraySize * sizeof(float));
+		cudaMalloc(&accumulators,  activationArraySize * sizeof(float));
 	}
 
 	
@@ -128,11 +92,11 @@ void Network::step(float* input, bool supervised, float* target)
 #endif
 
 #ifdef ACTION_L_OBS_O
-	std::copy(input, input + outS[0], rootModule->outputActivations.data());
+	std::copy(input, input + outS[0], rootModule->outputActivations.data_ptr<float>());
 #else
-	std::copy(input, input + inS[0], rootModule->inputActivations.data());
+	std::copy(input, input + inS[0], rootModule->inputActivations.data_ptr<float>());
 	if (supervised) {
-		std::copy(target, target + outS[0], rootModule->outputActivations.data());
+		std::copy(target, target + outS[0], rootModule->outputActivations.data_ptr<float>());
 	}
 #endif
 

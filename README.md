@@ -72,12 +72,18 @@ The agent has a pointer to the root module, and an inference / learning step is 
 ## Implementation notes and longer term TODOs
 
 CUDA and Cublas functions will be merged to the main branch when a satisfactory modulation rule for predictive coding is found. The time it takes to develop and iterate on kernels is not worth the performance gain on my hardware (GTX 1050M). In the mean time, acceleration relies on libtorch's CPU and GPU BLAS. <br>
+I am also pondering shifting the project to a python frontend, with a C++ and [Triton](https://triton-lang.org/main/index.html) backend.<br>
+
+
+#### Hybrid predictive coding
+
+Recently, a [paper](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1011280) introducing a very promising variant of predictive coding has been published. This is how I plan to merge it to the DeMoCEvo agent's algorithm:
 
 There are 2 major hindrances to predictive coding's hardware efficiency: 
 - low GPU occupancy as its operations are matrix-vector products, memory bound.
-- each "time step" in the simulation requires a number of inference steps, and the deeper the network the worst it gets. 5 layers require at least 16 steps.
+- each "time step" in the simulation requires a number of inference steps, and the deeper the network the worst it gets. 5 layers require at least 16 steps in a feedforward graph.
 
-We could kill two birds with one stone by grouping the activations of (32 ? 128 ? ...) adjacent time steps into a matrix, and performing inference simultaneously on those. Modulation (i.e. learning, theta update) would only apply to the last column at each time step, that is the activations inferred from the oldest observation, on which the inference process has had time to converge. The idea is similar but not identical to iPC. And the agent's action would also be the converged activations of the last column. <sub><sup>However this would induce latency, but I have an idea that could alleviate it</sup></sub> 
+We could kill two birds with one stone by grouping the activations of (32 ? 128 ? ...) adjacent time steps into a matrix, and performing iterative inference simultaneously on those, once per timestep. Modulation (i.e. learning, theta update) would only apply to the last column at each time step, that is the activations inferred from the oldest observation, on which the iterative inference process has had time to converge. The agent's action is computed with amortised inference, so 0 latency. It can be approximatively performed on the current agent architecture despite it being reccurent, if we are clever with the propagation order.  
 
 Looking further, this algorithm would greatly benefit from being entirely ported to GPU, using something like [Isaac gym](https://developer.nvidia.com/isaac-gym) for the trials. 
 
